@@ -1,164 +1,24 @@
 import os
 import json
 import pandas as pd
-import faiss
-import numpy as np
 
-from dotenv import load_dotenv
-from sentence_transformers import SentenceTransformer
-from openai import OpenAI
-
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-DATA_DIR = os.path.join(BASE_DIR, "data")
-INDEX_DIR = os.path.join(BASE_DIR, "index")
-OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
-
-EVAL_FILE = os.path.join(DATA_DIR, "eval_questions.csv")
-RESULT_FILE = os.path.join(OUTPUT_DIR, "eval_results.csv")
-
-EMBEDDING_MODEL_NAME = "paraphrase-multilingual-MiniLM-L12-v2"
+from config import (
+    ensure_dirs,
+    EVAL_FILE_PATH,
+    EVAL_RESULT_PATH,
+    EVAL_SUMMARY_PATH,
+    THRESHOLD_COMPARE_PATH,
+    VECTOR_TOP_K,
+    FINAL_TOP_K,
+    SIMILARITY_THRESHOLD
+)
+from rag_pipline import RAGPipeline
 
 
-load_dotenv(override=True)
-
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
-
-
-def load_resources():
-    embedder = SentenceTransformer(EMBEDDING_MODEL_NAME)
-
-    index_path = os.path.join(INDEX_DIR, "faiss.index")
-    chunks_path = os.path.join(INDEX_DIR, "chunks.json")
-
-    if not os.path.exists(index_path):
-        raise FileNotFoundError("没有找到 index/faiss.index，请先运行 python build_index.py")
-
-    if not os.path.exists(chunks_path):
-        raise FileNotFoundError("没有找到 index/chunks.json，请先运行 python build_index.py")
-
-    index = faiss.read_index(index_path)
-
-    with open(chunks_path, "r", encoding="utf-8") as f:
-        chunks = json.load(f)
-
-    return embedder, index, chunks
-
-
-def retrieve(query, embedder, index, chunks, top_k=3):
-    query_embedding = embedder.encode(
-        [query],
-        normalize_embeddings=True
-    )
-    query_embedding = np.array(query_embedding).astype("float32")
-
-    scores, indices = index.search(query_embedding, top_k)
-
-    results = []
-
-    for score, idx in zip(scores[0], indices[0]):
-        item = chunks[idx]
-        results.append({
-            "score": float(score),
-            "source": item["source"],
-            "chunk_id": item["chunk_id"],
-            "chunk_length": item.get("chunk_length", len(item["text"])),
-            "text": item["text"]
-        })
-
-    return results
-
-
-def build_prompt(query, retrieved_docs):
-    context = "\n\n".join([
-        f"[来源: {doc['source']} | chunk: {doc['chunk_id']} | score: {doc['score']:.4f}]\n{doc['text']}"
-        for doc in retrieved_docs
-    ])
-
-    prompt = f"""
-你是一个严谨的网络安全知识库问答助手。你只能根据【检索资料】回答问题。
-
-请遵守以下规则：
-1. 只使用【检索资料】中的信息回答；
-2. 如果资料不足以回答，请直接说“知识库中没有足够信息回答该问题”；
-3. 不要补充资料中没有出现的事实、案例、工具或数据；
-4. 回答要简洁、分点；
-5. 最后列出你参考的来源文件名和 chunk_id。
-
-【检索资料】
-{context}
-
-【用户问题】
-{query}
-
-【回答】
-"""
-    return prompt
-
-
-def ask_deepseek(prompt):
-    if not DEEPSEEK_API_KEY:
-        raise ValueError("没有读取到 DEEPSEEK_API_KEY，请检查 .env 文件。")
-
-    client = OpenAI(
-        api_key=DEEPSEEK_API_KEY,
-        base_url="https://api.deepseek.com"
-    )
-
-    response = client.chat.completions.create(
-        model="deepseek-chat",
-        messages=[
-            {
-                "role": "system",
-                "content": "你是一个严谨的知识库问答助手，只能根据用户提供的检索资料回答。"
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-        temperature=0.2
-    )
-
-    return response.choices[0].message.content
-
-
-def rag_answer(query, embedder, index, chunks, top_k=3, threshold=0.35):
-    retrieved_docs = retrieve(
-        query=query,
-        embedder=embedder,
-        index=index,
-        chunks=chunks,
-        top_k=top_k
-    )
-
-    best_score = retrieved_docs[0]["score"] if retrieved_docs else 0
-
-    if best_score < threshold:
-        return {
-            "query": query,
-            "answer": "知识库中没有足够信息回答该问题。",
-            "retrieved_docs": retrieved_docs,
-            "best_score": best_score,
-            "status": "insufficient_context"
-        }
-
-    prompt = build_prompt(query, retrieved_docs)
-    answer = ask_deepseek(prompt)
-
-    return {
-        "query": query,
-        "answer": answer,
-        "retrieved_docs": retrieved_docs,
-        "best_score": best_score,
-        "status": "answered"
-    }
-
-
-def keyword_hit(answer, expected_keywords):
+def keyword_hit(answer: str, expected_keywords: str):
     """
-    判断回答中是否包含预期关键词。
+    简单关键词命中率。
+    使用大小写不敏感匹配。
     """
     if pd.isna(expected_keywords) or str(expected_keywords).strip() == "":
         return {
@@ -173,15 +33,14 @@ def keyword_hit(answer, expected_keywords):
         if kw.strip()
     ]
 
-    if not keywords:
-        return {
-            "keywords": [],
-            "hit_keywords": [],
-            "hit_rate": None
-        }
+    answer_lower = answer.lower()
 
-    hit_keywords = [kw for kw in keywords if kw in answer]
-    hit_rate = len(hit_keywords) / len(keywords)
+    hit_keywords = [
+        kw for kw in keywords
+        if kw.lower() in answer_lower
+    ]
+
+    hit_rate = len(hit_keywords) / len(keywords) if keywords else None
 
     return {
         "keywords": keywords,
@@ -192,29 +51,46 @@ def keyword_hit(answer, expected_keywords):
 
 def source_hit(retrieved_docs, expected_source):
     """
-    判断 Top-K 检索结果中是否包含预期来源文件。
+    Top-K 来源是否命中。
     """
     if pd.isna(expected_source) or expected_source == "none":
         return None
 
     retrieved_sources = [doc["source"] for doc in retrieved_docs]
-
     return expected_source in retrieved_sources
 
 
-def evaluate(top_k=3, threshold=0.35):
-    if not os.path.exists(EVAL_FILE):
-        raise FileNotFoundError("没有找到 data/eval_questions.csv，请先创建评估问题文件。")
+def top1_source_hit(retrieved_docs, expected_source):
+    """
+    Top1 来源是否命中。
+    """
+    if pd.isna(expected_source) or expected_source == "none":
+        return None
 
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    if not retrieved_docs:
+        return False
 
-    print("正在加载索引和模型...")
-    embedder, index, chunks = load_resources()
+    return retrieved_docs[0]["source"] == expected_source
 
-    print("正在读取评估问题...")
-    eval_df = pd.read_csv(EVAL_FILE)
 
-    eval_results = []
+def evaluate_once(
+    rag: RAGPipeline,
+    top_k: int = FINAL_TOP_K,
+    threshold: float = SIMILARITY_THRESHOLD,
+    save_path: str = EVAL_RESULT_PATH,
+    category: str = "all"
+):
+    """
+    单次评估。
+    category 默认为 all，也可以指定 incident_response / web_security / llm_security。
+    """
+    if not os.path.exists(EVAL_FILE_PATH):
+        raise FileNotFoundError(
+            "没有找到 data/eval_questions.csv，请先创建评估问题文件。"
+        )
+
+    eval_df = pd.read_csv(EVAL_FILE_PATH)
+    results = []
 
     for i, row in eval_df.iterrows():
         question = row["question"]
@@ -222,98 +98,214 @@ def evaluate(top_k=3, threshold=0.35):
         expected_source = row.get("expected_source", "none")
         should_answer = row.get("should_answer", "yes")
 
-        print(f"\n[{i + 1}/{len(eval_df)}] 评估问题：{question}")
+        print(f"[{i + 1}/{len(eval_df)}] {question}")
 
-        result = rag_answer(
+        result = rag.answer(
             query=question,
-            embedder=embedder,
-            index=index,
-            chunks=chunks,
-            top_k=top_k,
-            threshold=threshold
+            vector_top_k=VECTOR_TOP_K,
+            final_top_k=top_k,
+            threshold=threshold,
+            category=category,
+            save_log=True
         )
 
-        answer = result["answer"]
-        retrieved_docs = result["retrieved_docs"]
-
-        kw_result = keyword_hit(answer, expected_keywords)
-        src_hit = source_hit(retrieved_docs, expected_source)
+        kw_result = keyword_hit(result["answer"], expected_keywords)
+        src_hit = source_hit(result["retrieved_docs"], expected_source)
+        top1_hit = top1_source_hit(result["retrieved_docs"], expected_source)
 
         if should_answer == "yes":
             refusal_correct = result["status"] == "answered"
         else:
             refusal_correct = result["status"] == "insufficient_context"
 
-        top1_source = retrieved_docs[0]["source"] if retrieved_docs else ""
-        top1_score = retrieved_docs[0]["score"] if retrieved_docs else 0
-        top1_chunk_id = retrieved_docs[0]["chunk_id"] if retrieved_docs else ""
-
         retrieved_sources = ";".join([
-            f"{doc['source']}#chunk{doc['chunk_id']}({doc['score']:.4f})"
-            for doc in retrieved_docs
+            f"{doc['source']}#chunk{doc['chunk_id']}"
+            f"(vector={doc.get('vector_score')},rerank={doc.get('rerank_score')})"
+            for doc in result["retrieved_docs"]
         ])
 
-        eval_results.append({
+        results.append({
             "question": question,
             "should_answer": should_answer,
             "status": result["status"],
             "best_score": result["best_score"],
             "expected_source": expected_source,
-            "top1_source": top1_source,
-            "top1_chunk_id": top1_chunk_id,
-            "top1_score": top1_score,
             "source_hit": src_hit,
+            "top1_source_hit": top1_hit,
             "expected_keywords": expected_keywords,
             "hit_keywords": ";".join(kw_result["hit_keywords"]),
             "keyword_hit_rate": kw_result["hit_rate"],
             "refusal_correct": refusal_correct,
+            "used_rerank": result["used_rerank"],
             "retrieved_sources": retrieved_sources,
-            "answer": answer
+            "answer": result["answer"]
         })
 
-    result_df = pd.DataFrame(eval_results)
-
-    result_df.to_csv(
-        RESULT_FILE,
-        index=False,
-        encoding="utf-8-sig"
-    )
-
-    print("\n评估完成！")
-    print(f"结果已保存到：{RESULT_FILE}")
-
-    print_summary(result_df)
+    result_df = pd.DataFrame(results)
+    result_df.to_csv(save_path, index=False, encoding="utf-8-sig")
 
     return result_df
 
 
-def print_summary(result_df):
-    print("\n========== 评估摘要 ==========")
-
+def summarize(result_df: pd.DataFrame, save_path: str = EVAL_SUMMARY_PATH):
+    """
+    汇总评估结果。
+    """
     answerable_df = result_df[result_df["should_answer"] == "yes"]
     unanswerable_df = result_df[result_df["should_answer"] == "no"]
 
-    print("总问题数：", len(result_df))
-    print("可回答问题数：", len(answerable_df))
-    print("不可回答问题数：", len(unanswerable_df))
+    summary = {
+        "total_questions": len(result_df),
+        "answerable_questions": len(answerable_df),
+        "unanswerable_questions": len(unanswerable_df),
+        "avg_best_score_answerable": None,
+        "source_hit_rate": None,
+        "top1_source_hit_rate": None,
+        "avg_keyword_hit_rate": None,
+        "refusal_accuracy": None
+    }
 
     if len(answerable_df) > 0:
-        print("\n可回答问题：")
-        print("平均最高相似度：", round(answerable_df["best_score"].mean(), 4))
-
-        if "source_hit" in answerable_df.columns:
-            print("来源命中率：", round(answerable_df["source_hit"].mean(), 4))
-
-        if "keyword_hit_rate" in answerable_df.columns:
-            print("平均关键词命中率：", round(answerable_df["keyword_hit_rate"].mean(), 4))
+        summary["avg_best_score_answerable"] = float(answerable_df["best_score"].mean())
+        summary["source_hit_rate"] = float(answerable_df["source_hit"].mean())
+        summary["top1_source_hit_rate"] = float(answerable_df["top1_source_hit"].mean())
+        summary["avg_keyword_hit_rate"] = float(answerable_df["keyword_hit_rate"].mean())
 
     if len(unanswerable_df) > 0:
-        print("\n不可回答问题：")
-        print("拒答准确率：", round(unanswerable_df["refusal_correct"].mean(), 4))
+        summary["refusal_accuracy"] = float(unanswerable_df["refusal_correct"].mean())
+
+    with open(save_path, "w", encoding="utf-8") as f:
+        json.dump(summary, f, ensure_ascii=False, indent=2)
+
+    print("\n========== 评估摘要 ==========")
+    for k, v in summary.items():
+        print(k, ":", v)
+
+    return summary
+
+
+def compare_thresholds(rag: RAGPipeline, thresholds=None):
+    """
+    threshold 对比实验。
+    不调用 LLM，只看 best_score 是否超过阈值。
+    目的是观察不同阈值下回答/拒答倾向。
+    """
+    if thresholds is None:
+        thresholds = [0.25, 0.30, 0.35, 0.40, 0.45]
+
+    eval_df = pd.read_csv(EVAL_FILE_PATH)
+    rows = []
+
+    for threshold in thresholds:
+        correct_count = 0
+
+        for _, row in eval_df.iterrows():
+            question = row["question"]
+            should_answer = row.get("should_answer", "yes")
+
+            candidates = rag.vector_retrieve(
+                question,
+                top_k=VECTOR_TOP_K,
+                category="all"
+            )
+            best_score = candidates[0]["vector_score"] if candidates else 0.0
+
+            predicted_status = "answered" if best_score >= threshold else "insufficient_context"
+
+            if should_answer == "yes":
+                correct = predicted_status == "answered"
+            else:
+                correct = predicted_status == "insufficient_context"
+
+            correct_count += int(correct)
+
+            rows.append({
+                "threshold": threshold,
+                "question": question,
+                "should_answer": should_answer,
+                "best_score": best_score,
+                "predicted_status": predicted_status,
+                "correct": correct
+            })
+
+    compare_df = pd.DataFrame(rows)
+    compare_df.to_csv(THRESHOLD_COMPARE_PATH, index=False, encoding="utf-8-sig")
+
+    print(f"\nthreshold 对比结果已保存到：{THRESHOLD_COMPARE_PATH}")
+
+    summary_df = compare_df.groupby("threshold")["correct"].mean().reset_index()
+    print("\n========== Threshold 对比摘要 ==========")
+    print(summary_df)
+
+    return compare_df
+
+
+def compare_rerank():
+    """
+    Rerank 开关对比实验。
+    """
+    rows = []
+
+    for use_rerank in [False, True]:
+        print(f"\n正在评估 use_rerank={use_rerank}")
+
+        rag = RAGPipeline(use_rerank=use_rerank)
+
+        save_result_path = os.path.join("logs", f"eval_results_rerank_{use_rerank}.csv")
+        save_summary_path = os.path.join("logs", f"eval_summary_rerank_{use_rerank}.json")
+
+        result_df = evaluate_once(
+            rag=rag,
+            top_k=FINAL_TOP_K,
+            threshold=SIMILARITY_THRESHOLD,
+            save_path=save_result_path,
+            category="all"
+        )
+
+        summary = summarize(result_df, save_path=save_summary_path)
+
+        rows.append({
+            "use_rerank": use_rerank,
+            "source_hit_rate": summary["source_hit_rate"],
+            "top1_source_hit_rate": summary["top1_source_hit_rate"],
+            "avg_keyword_hit_rate": summary["avg_keyword_hit_rate"],
+            "refusal_accuracy": summary["refusal_accuracy"]
+        })
+
+    compare_df = pd.DataFrame(rows)
+
+    save_path = os.path.join("logs", "rerank_compare.csv")
+    compare_df.to_csv(save_path, index=False, encoding="utf-8-sig")
+
+    print("\nRerank 对比结果：")
+    print(compare_df)
+
+    return compare_df
+
+
+def main():
+    ensure_dirs()
+
+    print("正在加载 RAG Pipeline...")
+    rag = RAGPipeline()
+
+    print("\n开始正式评估...")
+    result_df = evaluate_once(
+        rag=rag,
+        top_k=FINAL_TOP_K,
+        threshold=SIMILARITY_THRESHOLD,
+        save_path=EVAL_RESULT_PATH,
+        category="all"
+    )
+
+    summarize(result_df, save_path=EVAL_SUMMARY_PATH)
+
+    print("\n开始 threshold 对比实验...")
+    compare_thresholds(rag)
+
+    print("\n开始 rerank 开关对比实验...")
+    compare_rerank()
 
 
 if __name__ == "__main__":
-    evaluate(
-        top_k=3,
-        threshold=0.35
-    )
+    main()

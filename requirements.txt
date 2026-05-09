@@ -1,0 +1,14 @@
+streamlit
+sentence-transformers
+faiss-cpu
+numpy
+pandas
+python-dotenv
+openai
+tqdm
+pypdf
+pdfplumber
+python-docx
+FlagEmbedding
+rank-bm25
+jieba

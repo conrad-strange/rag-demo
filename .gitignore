@@ -1,14 +1,104 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# =========================
+# Virtual environments
+# =========================
+.venv/
+venv/
+env/
+ENV/
+conda-meta/
+
+# =========================
+# Environment variables / secrets
+# =========================
 .env
 .env.*
 !.env.example
 
-__pycache__/
-*.py[cod]
-.pytest_cache/
-
+# =========================
+# Jupyter Notebook
+# =========================
 .ipynb_checkpoints/
 
-outputs/
+# =========================
+# IDE / Editor
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
 
+# =========================
+# OS files
+# =========================
 .DS_Store
 Thumbs.db
+
+# =========================
+# RAG generated index files
+# =========================
+index/
+*.faiss
+faiss.index
+chunks.json
+index_meta.json
+
+# =========================
+# Logs and evaluation outputs
+# =========================
+logs/
+*.log
+query_logs.jsonl
+eval_results.csv
+eval_summary.json
+threshold_compare.csv
+rerank_compare.csv
+index_build_log.json
+
+# =========================
+# Model / cache files
+# =========================
+.cache/
+huggingface/
+models/
+*.bin
+*.pt
+*.pth
+*.safetensors
+
+# =========================
+# Temporary files
+# =========================
+tmp/
+temp/
+*.tmp
+
+# =========================
+# Optional: large raw documents
+# 如果你不想上传 PDF 文档，就取消下面几行注释
+# =========================
+# data/*.pdf
+# data/*.docx
+# data/*.xlsx
+
+# =========================
+# Keep folder structure
+# =========================
+!data/.gitkeep
+!index/.gitkeep
+!logs/.gitkeep
+!screenshots/.gitkeep
+!notebooks/.gitkeep
