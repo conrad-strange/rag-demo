@@ -50,7 +50,8 @@ Thumbs.db
 # =========================
 # RAG generated index files
 # =========================
-index/
+index/*
+!index/.gitkeep
 *.faiss
 faiss.index
 chunks.json
@@ -60,6 +61,7 @@ index_meta.json
 # Logs and evaluation outputs
 # =========================
 logs/
+!logs/.gitkeep
 *.log
 query_logs.jsonl
 eval_results.csv
