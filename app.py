@@ -1,11 +1,12 @@
 import streamlit as st
 
+from agent_router import AgentRAGWorkflow
 from config import (
-    VECTOR_TOP_K,
+    EMBEDDING_MODEL_NAME,
     FINAL_TOP_K,
     SIMILARITY_THRESHOLD,
-    EMBEDDING_MODEL_NAME,
-    USE_RERANK
+    USE_RERANK,
+    VECTOR_TOP_K,
 )
 from rag_pipline import RAGPipeline
 
@@ -15,119 +16,160 @@ def load_rag_pipeline(use_rerank: bool):
     return RAGPipeline(use_rerank=use_rerank)
 
 
+def render_sources(docs):
+    st.subheader("Retrieved Sources")
+    for i, doc in enumerate(docs, start=1):
+        title = (
+            f"Top {i} | {doc.get('source', '')} | chunk {doc.get('chunk_id', '')} | "
+            f"vector_score {doc.get('vector_score', 0.0):.4f}"
+        )
+        if doc.get("bm25_score") is not None:
+            title += f" | bm25_score {doc['bm25_score']:.4f}"
+        if doc.get("rerank_score") is not None:
+            title += f" | rerank_score {doc['rerank_score']:.4f}"
+
+        with st.expander(title):
+            st.write(doc.get("text", ""))
+
+
 def main():
     st.set_page_config(
-        page_title="网络安全知识库 RAG 系统",
-        page_icon="🔐",
-        layout="wide"
+        page_title="Security RAG Assistant v2",
+        page_icon="RAG",
+        layout="wide",
     )
 
-    st.title("🔐 网络安全知识库 RAG 问答系统 v2")
+    st.title("Security RAG Assistant v2")
     st.write(
-        "基于本地文档、Sentence-Transformers、FAISS、Rerank、Streamlit 和 DeepSeek API 的轻量级 RAG 工具。"
+        "A lightweight security RAG demo with vector retrieval, optional hybrid search, "
+        "reranking, and an Agent RAG workflow."
     )
 
     with st.sidebar:
-        st.header("参数设置")
+        st.header("Settings")
 
-        use_rerank = st.checkbox(
-            "启用 Rerank",
-            value=USE_RERANK
+        app_mode = st.radio(
+            "Run mode",
+            options=["Normal RAG Mode", "Agent RAG Mode"],
+            index=0,
         )
 
+        use_rerank = st.checkbox("Use rerank", value=USE_RERANK)
+
         vector_top_k = st.slider(
-            "第一阶段向量召回数量",
+            "Vector top-k",
             min_value=3,
             max_value=15,
-            value=VECTOR_TOP_K
+            value=VECTOR_TOP_K,
         )
 
         final_top_k = st.slider(
-            "最终使用的文档片段数量",
+            "Final top-k",
             min_value=1,
-            max_value=5,
-            value=FINAL_TOP_K
+            max_value=8,
+            value=FINAL_TOP_K,
         )
 
         threshold = st.slider(
-            "信息不足判断阈值",
+            "Similarity threshold",
             min_value=0.0,
             max_value=1.0,
             value=SIMILARITY_THRESHOLD,
-            step=0.05
+            step=0.05,
         )
-        category = st.selectbox(
-        "知识库范围",
-        options=["all", "incident_response", "web_security", "llm_security"],
-        index=0
-        )
-        st.markdown("---")
-        st.write("Embedding 模型：")
-        st.code(EMBEDDING_MODEL_NAME)
 
-        use_hybrid = st.checkbox(
-        "启用 Hybrid Search（BM25 + 向量检索）",
-        value=False
+        category = st.selectbox(
+            "Document category",
+            options=["all", "incident_response", "web_security", "llm_security"],
+            index=0,
         )
+
+        use_hybrid = st.checkbox("Use hybrid search (BM25 + vector)", value=False)
+
+        st.markdown("---")
+        st.caption("Embedding model")
+        st.code(EMBEDDING_MODEL_NAME)
 
     try:
         rag = load_rag_pipeline(use_rerank=use_rerank)
     except Exception as e:
-        st.error("RAG 系统加载失败。请确认已经运行 python build_index.py，并检查 .env。")
+        st.error("Failed to load RAG pipeline. Run `python build_index.py` and check `.env`.")
         st.exception(e)
         return
 
+    examples = [
+        "What is SQL injection?",
+        "Summarize the main security risks in this document.",
+        "Compare SQL injection and XSS.",
+        "What fields are included in the table?",
+    ]
     query = st.text_input(
-        "请输入你的问题：",
-        placeholder="例如：什么是中间人攻击？SQL注入如何防御？"
+        "Ask a security question",
+        placeholder=examples[0],
     )
 
-    if st.button("提交问题", type="primary"):
+    with st.expander("Example queries"):
+        for example in examples:
+            st.code(example)
+
+    if st.button("Run", type="primary"):
         if not query.strip():
-            st.warning("请输入问题。")
+            st.warning("Please enter a question.")
             return
 
-        with st.spinner("正在检索知识库并生成回答..."):
-            result = rag.answer(
-                category=category,
-                query=query,
-                vector_top_k=vector_top_k,
-                final_top_k=final_top_k,
-                threshold=threshold,
-                use_hybrid=use_hybrid,
-                save_log=True
-            )
+        with st.spinner("Retrieving context and generating answer..."):
+            if app_mode == "Agent RAG Mode":
+                agent = AgentRAGWorkflow(rag)
+                result = agent.agent_answer(
+                    query=query,
+                    category=category,
+                    vector_top_k=vector_top_k,
+                    final_top_k=final_top_k,
+                    threshold=threshold,
+                    use_hybrid=use_hybrid,
+                    save_log=True,
+                )
+            else:
+                result = rag.answer(
+                    category=category,
+                    query=query,
+                    vector_top_k=vector_top_k,
+                    final_top_k=final_top_k,
+                    threshold=threshold,
+                    use_hybrid=use_hybrid,
+                    save_log=True,
+                )
 
-        st.subheader("回答")
-
+        st.subheader("Answer")
         if result["status"] == "answered":
-            st.success("已根据知识库生成回答")
+            st.success("Answered with retrieved context.")
+        elif result["status"] == "table_fallback_to_docs":
+            st.info("No table metadata was found. Fell back to general document retrieval.")
         else:
-            st.warning("知识库信息不足")
+            st.warning("Insufficient retrieved context.")
 
         st.write(result["answer"])
 
-        st.subheader("状态信息")
+        st.subheader("Run Details")
+        metric_cols = st.columns(5 if app_mode == "Agent RAG Mode" else 4)
+        metric_cols[0].metric("Status", result["status"])
+        metric_cols[1].metric("Best score", f"{result['best_score']:.4f}")
+        metric_cols[2].metric("Rerank", str(result["used_rerank"]))
+        metric_cols[3].metric("Hybrid", str(result.get("used_hybrid", False)))
 
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("状态", result["status"])
-        col2.metric("最高向量相似度", f"{result['best_score']:.4f}")
-        col3.metric("是否启用 Rerank", str(result["used_rerank"]))
-        col4.metric("是否启用 Hybrid", str(result.get("used_hybrid", False)))
-
-        st.subheader("检索结果")
-
-        for i, doc in enumerate(result["retrieved_docs"], start=1):
-            title = (
-                f"Top {i} | {doc['source']} | chunk {doc['chunk_id']} | "
-                f"vector_score {doc.get('vector_score', 0.0):.4f}"
+        if app_mode == "Agent RAG Mode":
+            metric_cols[4].metric("Task type", result["task_type"])
+            st.write("Tool used:", result["tool_used"])
+            st.json(
+                {
+                    "query": result["query"],
+                    "task_type": result["task_type"],
+                    "tool_used": result["tool_used"],
+                    "sources": result["sources"],
+                }
             )
 
-            if doc.get("bm25_score") is not None:
-                title += f" | bm25_score {doc['bm25_score']:.4f}"
-
-            if doc.get("rerank_score") is not None:
-                title += f" | rerank_score {doc['rerank_score']:.4f}"
+        render_sources(result["retrieved_docs"])
 
 
 if __name__ == "__main__":
