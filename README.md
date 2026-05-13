@@ -1,30 +1,82 @@
+
 ````markdown
-# Security RAG Assistant v2
+# Security RAG Assistant
 
-一个面向网络安全知识库的轻量级 RAG 问答与评估系统。
+A lightweight Retrieval-Augmented Generation system for security knowledge base question answering and evaluation.
 
-本项目从最小 RAG Demo 逐步扩展而来，当前已经支持真实英文安全 PDF 文档读取、文本切分、向量检索、Rerank、Metadata 分类过滤、PDF 表格解析、Hybrid Search、Streamlit 前端展示和基础评估实验。
+This project builds a local RAG pipeline over cybersecurity documents. It supports document loading, PDF text/table extraction, chunking, vector indexing, metadata filtering, hybrid retrieval, reranking, LLM-based answer generation, source tracing, refusal for out-of-scope questions, and basic evaluation.
 
-项目定位是学习型与展示型 RAG 原型，不是企业级生产系统。
+The current version uses security documents such as NIST incident handling guidance, OWASP Web Top 10, and OWASP Top 10 for LLM Applications as example knowledge sources.
 
 ---
 
-## 1. 环境搭建
+## Features
 
-建议使用 conda 创建独立环境：
+- Load `.txt`, `.md`, `.docx`, and text-based `.pdf` files.
+- Extract PDF text and tables with `pdfplumber`.
+- Convert extracted PDF tables into Markdown-style text.
+- Split documents into chunks with a paragraph-first strategy.
+- Build a local FAISS vector index with sentence-transformer embeddings.
+- Retrieve relevant chunks with dense vector search.
+- Support BM25 keyword retrieval and Hybrid Search.
+- Use reranking to reorder retrieved candidates.
+- Filter retrieval scope with document metadata categories.
+- Generate answers using DeepSeek API.
+- Display source document, chunk id, vector score, BM25 score, and rerank score.
+- Reject questions when the knowledge base does not contain enough relevant information.
+- Save query logs and evaluation outputs.
+- Evaluate retrieval and answer quality with a small test set.
+
+---
+
+## Project Structure
+
+```text
+security-rag-v2/
+├── app.py                  # Streamlit web interface
+├── build_index.py           # Build FAISS index
+├── config.py                # Global configuration
+├── document_loader.py       # Document loading and PDF parsing
+├── eval_rag.py              # Evaluation script
+├── hybrid_search.py         # BM25 and hybrid retrieval
+├── rag_pipeline.py          # Core RAG pipeline
+├── text_splitter.py         # Text cleaning and chunking
+├── requirements.txt
+├── .env.example
+│
+├── data/
+│   ├── .gitkeep
+│   └── eval_questions.csv
+│
+├── index/
+│   └── .gitkeep
+│
+├── logs/
+│   └── .gitkeep
+│
+├── notebooks/
+│
+└── screenshots/
+````
+
+---
+
+## Environment Setup
+
+Create a conda environment:
 
 ```bash
 conda create -n security-rag python=3.10 -y
 conda activate security-rag
-````
+```
 
-安装依赖：
+Install dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-`requirements.txt` 示例：
+Example `requirements.txt`:
 
 ```txt
 streamlit
@@ -45,67 +97,64 @@ jieba
 
 ---
 
-## 2. API Key 配置
+## API Configuration
 
-在项目根目录新建 `.env` 文件：
+Create a `.env` file in the project root:
 
 ```bash
 DEEPSEEK_API_KEY=your_api_key_here
 ```
 
-注意：`.env` 文件不要上传到 GitHub。
+The project provides `.env.example` as a template.
 
 ---
 
-## 3. 项目结构
+## Data Preparation
+
+Place security documents under the `data/` directory.
+
+Example documents used during development:
 
 ```text
-security-rag-v2/
-├── app.py                  # Streamlit 前端
-├── build_index.py           # 构建 FAISS 索引
-├── config.py                # 参数配置
-├── document_loader.py       # 文档读取
-├── eval_rag.py              # 评估模块
-├── hybrid_search.py         # BM25 / Hybrid Search
-├── rag_pipeline.py          # RAG 核心流程
-├── text_splitter.py         # 文本切分
-├── requirements.txt
-├── .env
-│
-├── data/
-│   ├── nist.sp.800-61r2.pdf
-│   ├── owasp-top-10.pdf
-│   ├── OWASP-Top-10-for-LLMs-v2025.pdf
-│   └── eval_questions.csv
-│
-├── index/
-│   ├── faiss.index
-│   ├── chunks.json
-│   └── index_meta.json
-│
-├── logs/
-│   ├── query_logs.jsonl
-│   ├── eval_results.csv
-│   ├── eval_summary.json
-│   ├── threshold_compare.csv
-│   └── rerank_compare.csv
-│
-└── notebooks/
+data/
+├── nist.sp.800-61r2.pdf
+├── owasp-top-10.pdf
+├── OWASP-Top-10-for-LLMs-v2025.pdf
+└── eval_questions.csv
 ```
+
+The current metadata categories are configured in `config.py`:
+
+```python
+DOCUMENT_CATEGORIES = {
+    "nist.sp.800-61r2.pdf": "incident_response",
+    "owasp-top-10.pdf": "web_security",
+    "OWASP-Top-10-for-LLMs-v2025.pdf": "llm_security"
+}
+```
+
+These categories are used for metadata filtering during retrieval.
 
 ---
 
-## 4. 如何运行
+## Build the Index
 
-### 4.1 构建知识库索引
+Run:
 
 ```bash
 python build_index.py
 ```
 
-该步骤会读取 `data/` 下的文档，完成文本抽取、chunk 切分、embedding 向量化，并保存 FAISS 索引。
+This step will:
 
-生成文件：
+1. Load documents from `data/`.
+2. Extract text and tables.
+3. Split documents into chunks.
+4. Generate embeddings.
+5. Build a FAISS index.
+6. Save generated files under `index/`.
+
+Generated files include:
 
 ```text
 index/faiss.index
@@ -115,112 +164,105 @@ index/index_meta.json
 
 ---
 
-### 4.2 启动前端
+## Run the Web App
+
+Start the Streamlit interface:
 
 ```bash
 streamlit run app.py
 ```
 
-默认访问：
+The app provides:
 
-```text
-http://localhost:8501
-```
-
-前端支持：
-
-* 输入问题；
-* 选择知识库范围；
-* 开关 Rerank；
-* 开关 Hybrid Search；
-* 调整 Top-K；
-* 调整 similarity threshold；
-* 查看回答来源、chunk_id、vector_score、bm25_score、rerank_score。
+* Question input;
+* Knowledge scope selection;
+* Rerank switch;
+* Hybrid Search switch;
+* Top-K settings;
+* Similarity threshold setting;
+* Answer display;
+* Retrieved chunk display;
+* Source file, chunk id, vector score, BM25 score, and rerank score.
 
 ---
 
-### 4.3 运行评估
+## Run Evaluation
+
+Run:
 
 ```bash
 python eval_rag.py
 ```
 
-评估结果会保存在：
+Evaluation outputs are saved under `logs/`:
 
 ```text
 logs/eval_results.csv
 logs/eval_summary.json
 logs/threshold_compare.csv
 logs/rerank_compare.csv
+logs/query_logs.jsonl
 ```
 
----
-
-## 5. 当前已实现功能
-
-当前系统已经实现：
-
-* 支持 `.txt` / `.md` / `.docx` / 文本型 `.pdf` 文档读取；
-* 使用 `pdfplumber` 对 PDF 文本和表格进行解析；
-* 将 PDF 表格转换为 Markdown 文本后进入知识库；
-* 使用段落优先策略进行 chunk 切分；
-* 使用 sentence-transformers 生成 embedding；
-* 使用 FAISS 建立本地向量索引；
-* 支持 Metadata 分类过滤；
-* 支持 BM25 + 向量检索的 Hybrid Search；
-* 支持 Rerank 对候选 chunk 进行二次排序；
-* 使用 DeepSeek API 生成回答；
-* 使用 similarity threshold 判断知识库是否有足够信息；
-* 对知识库外问题进行拒答；
-* 保存 query log；
-* 构建评估集并输出评估结果。
-
----
-
-## 6. 当前知识库
-
-当前使用三份真实英文安全 PDF：
-
-| 文档                                | 主题                    | 分类                  |
-| --------------------------------- | --------------------- | ------------------- |
-| `nist.sp.800-61r2.pdf`            | 计算机安全事件处理指南           | `incident_response` |
-| `owasp-top-10.pdf`                | OWASP Web Top 10      | `web_security`      |
-| `OWASP-Top-10-for-LLMs-v2025.pdf` | OWASP LLM Top 10 2025 | `llm_security`      |
-
-说明：NIST SP 800-61r2 当前不是最新版本，本项目仅将其作为历史安全文档测试样例。
-
----
-
-## 7. 系统流程
+The evaluation set is stored in:
 
 ```text
-原始文档
-→ 文档读取
-→ PDF 文本与表格解析
-→ 文本清洗
-→ chunk 切分
-→ embedding 向量化
-→ FAISS 建索引
-→ 用户提问
-→ Metadata 分类过滤
-→ 向量检索 / BM25 检索 / Hybrid Search
-→ Rerank 重排序
-→ Prompt 拼接
-→ DeepSeek 生成回答
-→ 展示答案与来源
-→ 保存日志和评估结果
+data/eval_questions.csv
+```
+
+Example format:
+
+```csv
+question,expected_keywords,expected_source,should_answer
+What are the major phases of the incident response life cycle?,Preparation;Detection and Analysis;Containment;Recovery,nist.sp.800-61r2.pdf,yes
+What is Prompt Injection in LLM applications?,Prompt Injection;Direct Prompt Injections;Indirect Prompt Injections,OWASP-Top-10-for-LLMs-v2025.pdf,yes
+What is the weather in Singapore tomorrow?,,none,no
 ```
 
 ---
 
-## 8. 评估结果
+## System Pipeline
 
-当前构建了 17 条测试问题：
+```text
+Documents
+  ↓
+Document loading and PDF parsing
+  ↓
+Text cleaning and table-to-Markdown conversion
+  ↓
+Chunk splitting
+  ↓
+Embedding generation
+  ↓
+FAISS index construction
+  ↓
+User query
+  ↓
+Metadata filtering
+  ↓
+Vector retrieval / BM25 retrieval / Hybrid Search
+  ↓
+Reranking
+  ↓
+Similarity threshold check
+  ↓
+Prompt construction
+  ↓
+DeepSeek answer generation
+  ↓
+Answer, sources, and logs
+```
 
-* 13 条知识库内问题；
-* 4 条知识库外问题。
+---
 
-当前一轮评估结果：
+## Current Evaluation Results
+
+The current evaluation set contains 17 questions:
+
+* 13 answerable questions;
+* 4 unanswerable questions.
+
+Evaluation result:
 
 ```json
 {
@@ -235,22 +277,22 @@ logs/rerank_compare.csv
 }
 ```
 
-指标含义：
+Metric explanation:
 
-| 指标                     | 含义                 |
-| ---------------------- | ------------------ |
-| `source_hit_rate`      | Top-K 中包含预期来源文档的比例 |
-| `top1_source_hit_rate` | Top1 就是预期来源文档的比例   |
-| `avg_keyword_hit_rate` | 回答命中预期关键词的平均比例     |
-| `refusal_accuracy`     | 知识库外问题被正确拒答的比例     |
+| Metric                 | Meaning                                                       |
+| ---------------------- | ------------------------------------------------------------- |
+| `source_hit_rate`      | Whether the expected source document appears in Top-K results |
+| `top1_source_hit_rate` | Whether the Top-1 result is from the expected source document |
+| `avg_keyword_hit_rate` | Average keyword coverage in generated answers                 |
+| `refusal_accuracy`     | Accuracy of refusing out-of-knowledge-base questions          |
 
-从当前结果看，系统在真实英文 PDF 上具备基本可用的检索能力，并且通过 threshold 调整后，知识库外问题拒答准确率达到 100%。
+The results show that the system can retrieve relevant sources from real English security PDFs and can reject out-of-scope questions after threshold tuning.
 
 ---
 
-## 9. Rerank 对比实验
+## Rerank Experiment
 
-为了验证 Rerank 是否改善检索排序，进行了 Rerank 开关对比。
+A rerank comparison was conducted to evaluate whether reranking improves retrieval ordering.
 
 ```text
 use_rerank=False
@@ -262,170 +304,136 @@ top1_source_hit_rate = 0.9231
 avg_keyword_hit_rate = 0.5962
 ```
 
-实验结果表明，在当前评估集上，开启 Rerank 后 Top1 来源命中率和平均关键词命中率均有提升。
+In the current evaluation set, enabling rerank improves both Top-1 source hit rate and average keyword hit rate.
 
-需要注意的是，`rerank_score` 不是 0 到 1 的概率，也不是余弦相似度。它是 reranker 模型内部的相关性分数，可能为负数，主要用于比较候选 chunk 之间的相对相关性。
+Note that `rerank_score` is not a probability or cosine similarity. It is an internal relevance score produced by the reranker model, and its relative ordering is more important than its absolute value.
 
 ---
 
-## 10. Threshold 对比实验
+## Threshold Experiment
 
-系统使用 `best_score` 判断知识库中是否存在足够相关的信息。
+The system uses `best_score` to decide whether the retrieved context is sufficiently relevant.
 
-由于当前使用的是：
+The vector index uses normalized embeddings with FAISS inner product search:
 
 ```python
 normalize_embeddings=True
 faiss.IndexFlatIP
 ```
 
-因此 `vector_score` 可以近似理解为归一化向量之间的余弦相似度。
+Therefore, the vector score can be interpreted approximately as cosine similarity.
 
-在实验中发现：
+During evaluation, different similarity thresholds were tested. A lower threshold makes the system more likely to answer, but may increase incorrect answers for unrelated questions. A higher threshold makes the system more conservative.
 
-* threshold 较低时，系统更容易回答，但可能误答知识库外问题；
-* threshold 较高时，系统更谨慎，拒答能力更强；
-* 当前知识库和评估集下，`SIMILARITY_THRESHOLD = 0.40` 比 `0.35` 更稳定。
-
-当前默认值：
+In the current setup, the default threshold is:
 
 ```python
 SIMILARITY_THRESHOLD = 0.40
 ```
 
+This setting improves refusal behavior for out-of-scope questions.
+
 ---
 
-## 11. 开发过程中遇到的问题与解决思路
+## Key Design Notes
 
-### 11.1 Web Injection 与 Prompt Injection 混淆
+### Metadata Filtering
 
-问题：
+When all documents are searched together, ambiguous terms may cause retrieval confusion.
+
+For example, the term `Injection` may refer to:
+
+* Web security Injection in OWASP Web Top 10;
+* Prompt Injection in OWASP LLM Top 10.
+
+To reduce this ambiguity, each document is assigned a metadata category:
 
 ```text
-What are common web application Injection vulnerabilities and prevention methods?
+incident_response
+web_security
+llm_security
 ```
 
-在未加分类过滤时，系统容易检索到 OWASP LLM Top 10 中的 Prompt Injection，而不是 OWASP Web Top 10 中的 A03 Injection。
+The app allows users to choose the retrieval scope. This helps the system retrieve from the intended knowledge domain.
 
-原因是：
+An implementation issue was found during development: filtering after retrieving only a small global Top-K could remove all relevant chunks from the selected category. The retrieval logic was updated to expand candidate retrieval first, then apply metadata filtering.
+
+### PDF Table Extraction
+
+Some security PDFs contain important tables. Basic PDF text extraction may lose row-column relationships, which can reduce answer completeness.
+
+To improve this, the loader uses `pdfplumber` to extract tables and convert them into Markdown-style text before indexing.
+
+This helps preserve table information, but complex PDF layouts may still require more advanced parsing.
+
+### Hybrid Search
+
+Dense vector retrieval is useful for semantic matching, while BM25 is useful for exact keyword matching.
+
+Security documents often contain terms such as:
 
 ```text
-Injection 在 Web 安全中指 SQL Injection / Command Injection 等；
-Injection 在 LLM 安全中可能指 Prompt Injection。
+CWE-89
+SSRF
+SQL Injection
+LLM08
+NIST 800-61
 ```
 
-解决方法：
-
-* 为每篇文档增加 `category`；
-* 前端增加知识库范围选择；
-* 支持 `incident_response` / `web_security` / `llm_security` 分类过滤；
-* 修改检索逻辑：先扩大召回范围，再按 category 过滤，避免先全库 Top-K 后过滤导致正确 chunk 被漏掉。
-
-这一问题说明，Metadata 不只是展示字段，它会直接影响真实检索效果。
+Hybrid Search combines vector retrieval and BM25 retrieval before reranking. This improves retrieval robustness for both semantic queries and exact technical terms.
 
 ---
 
-### 11.2 PDF 表格内容回答不完整
+## Limitations
 
-在测试 NIST 文档时，部分表格类问题无法完整回答。
+The current system is still a lightweight prototype. Main limitations include:
 
-原因是：
+1. PDF parsing is limited for complex tables, scanned PDFs, images, and multi-column layouts.
+2. Chunking is based mainly on paragraphs and does not fully use document section hierarchy.
+3. Hybrid Search currently merges candidates but does not perform advanced score fusion.
+4. Keyword hit rate is a simple evaluation metric and cannot fully capture semantic correctness.
+5. The system mainly supports single-turn question answering.
+6. No user permission or document-level access control is implemented.
+7. Index updates require rebuilding the index manually.
 
-* PDF 表格被普通文本抽取打散；
-* 表格行列关系丢失；
-* chunk 切分后表格上下文不完整；
-* 普通问题可能优先命中正文，而不是表格 chunk。
+---
 
-解决方法：
+## Future Work
 
-* 引入 `pdfplumber`；
-* 提取 PDF 表格；
-* 将表格转为 Markdown 后写入知识库；
-* 对表格类内容设计更明确的问题进行测试。
+Planned improvements include:
 
-例如，普通问题：
+* Better PDF table and layout parsing;
+* Section-aware chunking;
+* Page number and section title metadata;
+* More robust Hybrid Search fusion;
+* Query rewriting;
+* Manual failure reason annotation;
+* Groundedness and answer relevance evaluation;
+* Multi-turn conversation support;
+* Document-level permission control;
+* Log sanitization.
 
-```text
-What are common sources of precursors and indicators during incident detection?
+---
+
+## What This Project Demonstrates
+
+This project demonstrates the following RAG capabilities:
+
+* Building a local knowledge base from real security documents;
+* Implementing the full RAG pipeline from ingestion to answer generation;
+* Using FAISS for vector retrieval;
+* Applying rerank for retrieval refinement;
+* Using metadata filtering to reduce domain ambiguity;
+* Using Hybrid Search to improve keyword-sensitive retrieval;
+* Adding similarity thresholding to reduce unsupported answers;
+* Evaluating RAG behavior with source hit rate, keyword hit rate, and refusal accuracy;
+* Analyzing common failure cases in realistic PDF-based RAG systems.
+
+---
+
+## Resume Description
+
+Built a lightweight cybersecurity RAG question-answering and evaluation system using Python, FAISS, BM25, Rerank, Streamlit, and DeepSeek API. The system supports txt/md/docx/text-based PDF ingestion, PDF text and table extraction, paragraph-first chunking, vector indexing, metadata filtering, hybrid retrieval, reranking, source tracing, and threshold-based refusal for out-of-knowledge-base questions. Evaluated the system on real English security PDFs from NIST and OWASP using source hit rate, Top-1 source hit rate, keyword hit rate, refusal accuracy, and rerank comparison experiments.
+
 ```
-
-可能命中正文解释段落。
-
-若要测试表格解析能力，更适合使用：
-
-```text
-Which sources are listed for precursors and indicators in the NIST incident detection table?
 ```
-
----
-
-### 11.3 关键词命中率不能完全代表回答质量
-
-最初关键词匹配区分大小写，导致部分正确回答被低估。
-
-解决方法：
-
-* 将关键词匹配改为大小写不敏感；
-* 将关键词命中率作为辅助指标，而不是唯一判断标准。
-
-当前仍存在的问题：
-
-* 同义表达无法识别；
-* 模型回答正确但未使用预设关键词时，命中率仍会偏低；
-* 后续可以加入人工评分或 LLM-as-judge。
-
----
-
-### 11.4 Rerank 分数为负数
-
-在测试过程中发现 `rerank_score` 经常为负数。
-
-这不是错误。Rerank 分数不是余弦相似度，也不是概率，而是模型内部相关性打分。应关注不同候选之间的相对大小，而不是简单判断正负。
-
-例如：
-
-```text
--2.05 > -2.29 > -5.90
-```
-
-表示第一个 chunk 在 reranker 看来最相关。
-
----
-
-## 12. 当前不足
-
-当前系统仍然是轻量级原型，主要不足包括：
-
-1. PDF 解析能力仍有限
-   对复杂表格、多栏排版、扫描版 PDF、图片文字支持不足。
-
-2. chunk 策略仍较基础
-   当前主要使用段落优先切分，尚未充分利用标题层级和 section metadata。
-
-3. Hybrid Search 仍是基础实现
-   当前只是 BM25 与向量检索候选合并，未做复杂分数融合。
-
-4. 评估方式仍较简单
-   关键词命中率无法充分评价语义正确性和 groundedness。
-
-5. 缺少多轮对话能力
-   当前主要支持单轮问答。
-
-6. 缺少权限控制
-   不适合直接用于企业敏感知识库。
-
----
-
-## 13. 后续改进方向
-
-后续可以继续改进：
-
-* 增强 PDF 表格解析和版式恢复；
-* 为 chunk 增加 section title 和 page number；
-* 实现更合理的 Hybrid Search 分数融合；
-* 增加 query rewrite；
-* 增加人工评分字段和 failure_reason；
-* 引入 groundedness / answer relevance 评估；
-* 支持多轮对话；
-* 增加文档级权限控制和日志脱敏。
-
