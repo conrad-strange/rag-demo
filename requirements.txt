@@ -12,3 +12,4 @@ python-docx
 FlagEmbedding
 rank-bm25
 jieba
+mcp

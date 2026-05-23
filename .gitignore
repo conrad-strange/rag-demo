@@ -11,6 +11,11 @@ __pycache__/
 .eggs/
 dist/
 build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
 # =========================
 # Virtual environments
@@ -27,6 +32,7 @@ conda-meta/
 .env
 .env.*
 !.env.example
+.streamlit/secrets.toml
 
 # =========================
 # Jupyter Notebook
@@ -60,7 +66,7 @@ index_meta.json
 # =========================
 # Logs and evaluation outputs
 # =========================
-logs/
+logs/*
 !logs/.gitkeep
 *.log
 query_logs.jsonl
@@ -87,6 +93,15 @@ models/
 tmp/
 temp/
 *.tmp
+*.bak
+*.orig
+*.local
+
+# =========================
+# Local MCP / host config
+# =========================
+.mcp.json
+mcp_settings.local.json
 
 # =========================
 # Optional: large raw documents

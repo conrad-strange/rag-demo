@@ -3,13 +3,7 @@ import json
 from datetime import datetime
 from typing import List, Dict, Optional
 
-import faiss
-import numpy as np
 from dotenv import load_dotenv
-from openai import OpenAI
-from sentence_transformers import SentenceTransformer
-
-from hybrid_search import BM25Retriever
 from config import BM25_TOP_K
 
 from config import (
@@ -27,6 +21,7 @@ from config import (
     DEEPSEEK_MODEL_NAME,
     LLM_TEMPERATURE
 )
+from service_context import env_snapshot, log_event, timed_stage
 
 
 class RAGPipeline:
@@ -65,23 +60,46 @@ class RAGPipeline:
         if not os.path.exists(CHUNKS_PATH):
             raise FileNotFoundError("没有找到 chunks.json，请先运行 python build_index.py")
 
-        print("正在加载 embedding 模型...")
-        self.embedder = SentenceTransformer(EMBEDDING_MODEL_NAME)
+        log_event(
+            "embedding model cache status",
+            embedding_model=EMBEDDING_MODEL_NAME,
+            **env_snapshot(),
+        )
+        with timed_stage("load embedding model cost", embedding_model=EMBEDDING_MODEL_NAME):
+            from sentence_transformers import SentenceTransformer
 
-        print("正在加载 FAISS 索引...")
-        self.index = faiss.read_index(FAISS_INDEX_PATH)
+            print("Loading embedding model...")
+            self.embedder = SentenceTransformer(EMBEDDING_MODEL_NAME)
+            log_event(
+                "embedding model loaded",
+                embedding_model=EMBEDDING_MODEL_NAME,
+                model_path=getattr(self.embedder, "model_name_or_path", EMBEDDING_MODEL_NAME),
+            )
 
-        print("正在加载 chunks...")
-        with open(CHUNKS_PATH, "r", encoding="utf-8") as f:
-            self.chunks = json.load(f)
-        print("正在初始化 BM25 检索器...")
-        self.bm25_retriever = BM25Retriever(self.chunks)
+        with timed_stage("load faiss index cost", path=FAISS_INDEX_PATH):
+            import faiss
+
+            print("Loading FAISS index...")
+            self.index = faiss.read_index(FAISS_INDEX_PATH)
+
+        with timed_stage("load chunks / metadata cost", path=CHUNKS_PATH):
+            print("Loading chunks...")
+            with open(CHUNKS_PATH, "r", encoding="utf-8") as f:
+                self.chunks = json.load(f)
+
+        with timed_stage("initialize BM25 cost", chunk_count=len(self.chunks)):
+            from hybrid_search import BM25Retriever
+
+            print("Initializing BM25 retriever...")
+            self.bm25_retriever = BM25Retriever(self.chunks)
 
 
     def _load_llm_client(self):
         """
         加载 DeepSeek API Client。
         """
+        from openai import OpenAI
+
         api_key = os.getenv("DEEPSEEK_API_KEY")
 
         if not api_key:
@@ -100,12 +118,13 @@ class RAGPipeline:
         try:
             from FlagEmbedding import FlagReranker
 
-            print(f"正在加载 reranker：{RERANK_MODEL_NAME}")
-            self.reranker = FlagReranker(
-                RERANK_MODEL_NAME,
-                use_fp16=False
-            )
-            print("reranker 加载完成。")
+            with timed_stage("load reranker cost", rerank_model=RERANK_MODEL_NAME):
+                print(f"Loading reranker: {RERANK_MODEL_NAME}")
+                self.reranker = FlagReranker(
+                    RERANK_MODEL_NAME,
+                    use_fp16=False
+                )
+            print("reranker loaded.")
 
         except Exception as e:
             print("reranker 加载失败，将自动关闭 rerank。")
@@ -118,16 +137,21 @@ class RAGPipeline:
         第一阶段：向量召回。
         如果指定 category，则先尽可能召回更多结果，再进行类别过滤。
         """
-        query_embedding = self.embedder.encode(
-            [query],
-            normalize_embeddings=True
-        )
+        import numpy as np
+
+        with timed_stage("first query embedding cost", query=query):
+            query_embedding = self.embedder.encode(
+                [query],
+                normalize_embeddings=True,
+                show_progress_bar=False
+            )
         query_embedding = np.array(query_embedding).astype("float32")
 
         # 数据量不大时，直接搜索全部 chunks，避免先全局 Top-K 再过滤导致漏召回
         search_k = len(self.chunks)
 
-        scores, indices = self.index.search(query_embedding, search_k)
+        with timed_stage("faiss search cost", search_k=search_k, category=category):
+            scores, indices = self.index.search(query_embedding, search_k)
 
         results = []
 
@@ -214,11 +238,18 @@ class RAGPipeline:
         rerank 的作用是对向量召回结果重新排序。
         """
         if not self.use_rerank or self.reranker is None:
+            log_event(
+                "rerank skipped",
+                use_rerank=self.use_rerank,
+                has_reranker=self.reranker is not None,
+                candidate_count=len(candidates),
+            )
             return candidates[:final_top_k]
 
         pairs = [[query, item["text"]] for item in candidates]
 
-        scores = self.reranker.compute_score(pairs)
+        with timed_stage("rerank cost", candidate_count=len(candidates), final_top_k=final_top_k):
+            scores = self.reranker.compute_score(pairs)
 
         if isinstance(scores, float):
             scores = [scores]
