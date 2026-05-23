@@ -1,4 +1,4 @@
-# Security RAG Assistant v2
+# Security RAG Assistant v3
 
 Security RAG Assistant v2 is a local Retrieval-Augmented Generation demo for security knowledge QA. It builds a searchable knowledge base from real security documents, supports normal RAG and a lightweight Agent RAG workflow, and now exposes the same capabilities through an MCP server.
 
