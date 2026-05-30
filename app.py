@@ -11,16 +11,40 @@ from config import (
 from rag_pipline import RAGPipeline
 
 
+APP_TITLE = "AI Research Paper RAG Demo"
+APP_DESCRIPTION = (
+    "A lightweight research-paper RAG demo for AI interpretability, "
+    "alignment, deception, trustworthiness, and safety evaluation."
+)
+EXAMPLE_QUERIES = [
+    "Compare alignment faking and Sleeper Agents. What kinds of deception risks do they study?",
+    "How do sparse autoencoders help mechanistic interpretability in Towards Monosemanticity and Scaling Monosemanticity?",
+]
+
+
 @st.cache_resource
 def load_rag_pipeline(use_rerank: bool):
     return RAGPipeline(use_rerank=use_rerank)
+
+
+def get_category_options(rag: RAGPipeline):
+    categories = sorted(
+        {
+            chunk.get("category", "general")
+            for chunk in (rag.chunks or [])
+            if chunk.get("category")
+        }
+    )
+    return ["all", *categories]
 
 
 def render_sources(docs):
     st.subheader("Retrieved Sources")
     for i, doc in enumerate(docs, start=1):
         title = (
-            f"Top {i} | {doc.get('source', '')} | chunk {doc.get('chunk_id', '')} | "
+            f"Top {i} | {doc.get('source', '')} | "
+            f"{doc.get('section_title') or 'unknown section'} | "
+            f"chunk {doc.get('matched_child_id', doc.get('chunk_id', ''))} | "
             f"vector_score {doc.get('vector_score', 0.0):.4f}"
         )
         if doc.get("bm25_score") is not None:
@@ -29,21 +53,25 @@ def render_sources(docs):
             title += f" | rerank_score {doc['rerank_score']:.4f}"
 
         with st.expander(title):
+            if doc.get("context_mode"):
+                st.caption(f"Context mode: {doc.get('context_mode')} | Parent id: {doc.get('parent_id')}")
+            if doc.get("page_start") is not None:
+                page_label = str(doc.get("page_start"))
+                if doc.get("page_end") not in (None, doc.get("page_start")):
+                    page_label = f"{doc.get('page_start')}-{doc.get('page_end')}"
+                st.caption(f"Pages: {page_label}")
             st.write(doc.get("text", ""))
 
 
 def main():
     st.set_page_config(
-        page_title="Security RAG Assistant v2",
+        page_title=APP_TITLE,
         page_icon="RAG",
         layout="wide",
     )
 
-    st.title("Security RAG Assistant v2")
-    st.write(
-        "A lightweight security RAG demo with vector retrieval, optional hybrid search, "
-        "reranking, and an Agent RAG workflow."
-    )
+    st.title(APP_TITLE)
+    st.write(APP_DESCRIPTION)
 
     with st.sidebar:
         st.header("Settings")
@@ -78,38 +106,33 @@ def main():
             step=0.05,
         )
 
+        use_hybrid = st.checkbox("Use hybrid search (BM25 + vector)", value=False)
+
+    try:
+        rag = load_rag_pipeline(use_rerank=use_rerank)
+    except Exception as e:
+        st.error("Failed to load RAG pipeline. Run `python index_manager.py update` and check `.env`.")
+        st.exception(e)
+        return
+
+    with st.sidebar:
         category = st.selectbox(
-            "Document category",
-            options=["all", "incident_response", "web_security", "llm_security"],
+            "Corpus category",
+            options=get_category_options(rag),
             index=0,
         )
-
-        use_hybrid = st.checkbox("Use hybrid search (BM25 + vector)", value=False)
 
         st.markdown("---")
         st.caption("Embedding model")
         st.code(EMBEDDING_MODEL_NAME)
 
-    try:
-        rag = load_rag_pipeline(use_rerank=use_rerank)
-    except Exception as e:
-        st.error("Failed to load RAG pipeline. Run `python build_index.py` and check `.env`.")
-        st.exception(e)
-        return
-
-    examples = [
-        "What is SQL injection?",
-        "Summarize the main security risks in this document.",
-        "Compare SQL injection and XSS.",
-        "What fields are included in the table?",
-    ]
     query = st.text_input(
-        "Ask a security question",
-        placeholder=examples[0],
+        "Ask a research question",
+        placeholder=EXAMPLE_QUERIES[0],
     )
 
     with st.expander("Example queries"):
-        for example in examples:
+        for example in EXAMPLE_QUERIES:
             st.code(example)
 
     if st.button("Run", type="primary"):

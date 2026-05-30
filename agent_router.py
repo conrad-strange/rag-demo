@@ -2,7 +2,7 @@ import json
 import os
 import re
 from datetime import datetime
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from config import FINAL_TOP_K, LOG_DIR, SIMILARITY_THRESHOLD, VECTOR_TOP_K
 
@@ -54,7 +54,7 @@ ROUTER_RULES = {
 }
 
 PROMPT_TEMPLATES = {
-    "fact_qa": """You are a security RAG assistant.
+    "fact_qa": """You are an AI research-paper RAG assistant.
 Answer the user question only from the retrieved context.
 If the context is not enough, say that the retrieved documents do not contain enough evidence.
 Keep the answer concise and include source hints when useful.
@@ -66,7 +66,7 @@ Question:
 {query}
 
 Answer:""",
-    "table_qa": """You are a security RAG assistant answering a table or field question.
+    "table_qa": """You are an AI research-paper RAG assistant answering a table, benchmark, or metric question.
 Prefer table-like chunks, field names, column labels, bullet lists, or structured metadata from the context.
 If no table evidence is available, clearly say you are falling back to general document context.
 Return a compact structured answer.
@@ -78,7 +78,7 @@ Question:
 {query}
 
 Answer:""",
-    "summary": """You are a security RAG assistant.
+    "summary": """You are an AI research-paper RAG assistant.
 Summarize the retrieved context for the user question.
 Use clear bullet points, group similar ideas, and avoid unsupported claims.
 
@@ -89,12 +89,12 @@ Question:
 {query}
 
 Summary:""",
-    "compare": """You are a security RAG assistant.
+    "compare": """You are an AI research-paper RAG assistant.
 Compare the requested items using the same dimensions where possible.
 Use a clear structure:
 1. Similarities
 2. Differences
-3. Practical security impact
+3. Research implications
 Base the comparison only on the retrieved context.
 
 Context:
@@ -126,9 +126,11 @@ def _format_context(docs: List[Dict]) -> str:
             score_parts.append(f"rerank_score={doc['rerank_score']:.4f}")
 
         context_parts.append(
-            "[source: {source} | chunk: {chunk_id} | {scores}]\n{text}".format(
+            "[source: {source} | section: {section} | chunk: {chunk_id} | context: {context_mode} | {scores}]\n{text}".format(
                 source=doc.get("source", ""),
+                section=doc.get("section_title") or "unknown section",
                 chunk_id=doc.get("chunk_id", ""),
+                context_mode=doc.get("context_mode", "child"),
                 scores=", ".join(score_parts),
                 text=doc.get("text", ""),
             )
@@ -146,6 +148,12 @@ def _source_items(docs: List[Dict]) -> List[Dict]:
         {
             "source": doc.get("source", ""),
             "chunk_id": doc.get("chunk_id", ""),
+            "matched_child_id": doc.get("matched_child_id"),
+            "section_title": doc.get("section_title"),
+            "page_start": doc.get("page_start"),
+            "page_end": doc.get("page_end"),
+            "parent_id": doc.get("parent_id"),
+            "context_mode": doc.get("context_mode"),
             "category": doc.get("category", "general"),
             "vector_score": doc.get("vector_score"),
             "bm25_score": doc.get("bm25_score"),
@@ -181,6 +189,7 @@ class AgentRAGWorkflow:
         final_top_k: int,
         category: str,
         use_hybrid: bool,
+        max_per_source: Optional[int] = None,
     ) -> Tuple[List[Dict], float]:
         if use_hybrid:
             candidates = self.rag.hybrid_retrieve(
@@ -199,7 +208,12 @@ class AgentRAGWorkflow:
             [doc.get("vector_score", 0.0) for doc in candidates],
             default=0.0,
         )
-        return self.rag.rerank(query, candidates, final_top_k=final_top_k), best_score
+        return self.rag.rerank(
+            query,
+            candidates,
+            final_top_k=final_top_k,
+            max_per_source=max_per_source,
+        ), best_score
 
     def _generate(self, task_type: str, query: str, docs: List[Dict]) -> str:
         prompt = _build_prompt(task_type, query, docs)
@@ -225,6 +239,7 @@ class AgentRAGWorkflow:
         summary_kwargs = kwargs.copy()
         summary_kwargs["vector_top_k"] = max(kwargs["vector_top_k"], 12)
         summary_kwargs["final_top_k"] = max(kwargs["final_top_k"], 5)
+        summary_kwargs["max_per_source"] = 2
         docs, best_score = self._retrieve_docs(query=query, **summary_kwargs)
         return self._generate("summary", query, docs), docs, best_score, "answered"
 
@@ -232,6 +247,7 @@ class AgentRAGWorkflow:
         compare_kwargs = kwargs.copy()
         compare_kwargs["vector_top_k"] = max(kwargs["vector_top_k"], 12)
         compare_kwargs["final_top_k"] = max(kwargs["final_top_k"], 5)
+        compare_kwargs["max_per_source"] = 2
         docs, best_score = self._retrieve_docs(query=query, **compare_kwargs)
         return self._generate("compare", query, docs), docs, best_score, "answered"
 
@@ -244,8 +260,11 @@ class AgentRAGWorkflow:
         threshold: float = SIMILARITY_THRESHOLD,
         use_hybrid: bool = False,
         save_log: bool = True,
+        forced_task_type: Optional[str] = None,
     ) -> Dict:
-        task_type = route_query(query)
+        task_type = forced_task_type or route_query(query)
+        if task_type not in TASK_TOOL_MAP:
+            task_type = "fact_qa"
         tool_name = TASK_TOOL_MAP[task_type]
         tool = getattr(self, tool_name)
 

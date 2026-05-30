@@ -62,6 +62,7 @@ index/*
 faiss.index
 chunks.json
 index_meta.json
+index_manifest.json
 
 # =========================
 # Logs and evaluation outputs
@@ -86,6 +87,9 @@ models/
 *.pt
 *.pth
 *.safetensors
+*.onnx
+*.onnx_data
+*.ckpt
 
 # =========================
 # Temporary files
@@ -104,12 +108,15 @@ temp/
 mcp_settings.local.json
 
 # =========================
-# Optional: large raw documents
-# 如果你不想上传 PDF 文档，就取消下面几行注释
+# Source corpus
+#
+# PDF files are kept local. Keep text corpus files and evaluation CSVs
+# trackable so the GitHub repo can still show the paper RAG workflow
+# without uploading large raw PDFs.
 # =========================
-# data/*.pdf
-# data/*.docx
-# data/*.xlsx
+data/**/*.pdf
+# data/**/*.docx
+# data/**/*.xlsx
 
 # =========================
 # Keep folder structure

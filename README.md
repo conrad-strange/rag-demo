@@ -1,22 +1,21 @@
-# Security RAG Assistant v3
+# AI Research Paper RAG Demo
 
-Security RAG Assistant v2 is a local Retrieval-Augmented Generation demo for security knowledge QA. It builds a searchable knowledge base from real security documents, supports normal RAG and a lightweight Agent RAG workflow, and now exposes the same capabilities through an MCP server.
+AI Research Paper RAG Demo is a local Retrieval-Augmented Generation project for reading, indexing, evaluating, and querying AI research papers. The current corpus focuses on mechanistic interpretability, sparse autoencoders, deception, alignment faking, sycophancy, jailbreak evaluation, dangerous capability evaluation, and chain-of-thought oversight.
 
-The project is designed as a learning and portfolio POC: small enough to understand, but complete enough to show document ingestion, indexing, retrieval, reranking, answer generation, evaluation, Streamlit UI, Agent-style routing, and MCP tool integration.
+The project is designed as a learning and portfolio POC: small enough to understand, but complete enough to show document ingestion, paper-aware parent-child chunking, FAISS indexing, incremental vector updates, retrieval, reranking, answer generation, Streamlit UI, Agent-style routing, MCP tool integration, retrieval evaluation, and RAGAS answer-level evaluation.
 
 ## Highlights
 
-- Load PDF, TXT, Markdown, and DOCX security documents
-- Split and clean documents into retrieval chunks
-- Build a local FAISS vector index with SentenceTransformers embeddings
-- Support optional BM25 + vector hybrid retrieval
-- Support optional reranking with FlagEmbedding
-- Generate grounded answers with DeepSeek Chat through an OpenAI-compatible client
-- Provide a Streamlit UI with Normal RAG and Agent RAG modes
-- Provide a Query Router + Tool Calling style Agent workflow
-- Expose RAG and Agent RAG capabilities as MCP tools over stdio
-- Include a local MCP client demo for tool listing, warmup, retrieval, and benchmark testing
-- Record query logs, Agent logs, MCP stderr logs, and service performance logs
+- Local paper RAG over PDF, TXT, Markdown, and DOCX files
+- Current paper corpus under `data/papers/` with 23 AI interpretability, alignment, deception, and safety evaluation sources
+- Local embedding model support with `BAAI/bge-m3`
+- FAISS vector store using `IndexIDMap2(IndexFlatIP)` for stable vector ids
+- Incremental index update through `index_manifest.json`
+- Optional BM25 + vector hybrid retrieval
+- Optional reranking with `BAAI/bge-reranker-base`
+- Streamlit UI for Normal RAG and Agent RAG modes
+- MCP stdio server for tool-based access from MCP hosts
+- Retrieval evaluation with 30 questions, graded relevance, negative queries, noise metrics, and grouped summaries
 
 ## Architecture
 
@@ -24,7 +23,7 @@ The project is designed as a learning and portfolio POC: small enough to underst
 User / Streamlit UI
 -> app.py
 -> RAGPipeline
--> FAISS / BM25 / reranker
+-> FAISS / optional BM25 / optional reranker
 -> DeepSeek Chat
 -> grounded answer + sources
 ```
@@ -39,7 +38,7 @@ MCP Client
 -> structured MCP tool result
 ```
 
-MCP does not replace the RAG pipeline. It wraps the existing local RAG and Agent RAG capabilities behind a standard tool interface, so MCP hosts such as Claude Desktop, Cursor, Codex, or other clients can call the same project logic.
+MCP does not replace the RAG pipeline. It wraps the same local RAG and Agent RAG capabilities behind a standard tool interface, so MCP hosts such as Claude Desktop, Cursor, Codex, or other clients can call the project logic.
 
 ## Tech Stack
 
@@ -48,41 +47,50 @@ MCP does not replace the RAG pipeline. It wraps the existing local RAG and Agent
 - Streamlit
 - FAISS
 - sentence-transformers
+- `BAAI/bge-m3` embeddings
+- `BAAI/bge-reranker-base` reranker
 - rank-bm25
 - FlagEmbedding
 - MCP Python SDK / FastMCP
 - DeepSeek API
 - pandas / numpy
-- pypdf / pdfplumber / python-docx
+- pdfplumber / python-docx
 
 ## Project Structure
 
 ```text
-rag-demo-v2/
+rag-demo/
 |-- app.py                         # Streamlit app: Normal RAG and Agent RAG
 |-- agent_router.py                # Query Router + Tool Calling style Agent workflow
-|-- build_index.py                 # Build FAISS index from files under data/
-|-- config.py                      # Paths, retrieval, model, and LLM configuration
+|-- build_index.py                 # Compatibility entrypoint for full index rebuild
+|-- config.py                      # Paths, chunking, retrieval, model, and LLM config
 |-- document_loader.py             # PDF/TXT/Markdown/DOCX document loading
-|-- eval_rag.py                    # RAG evaluation script
+|-- eval_rag.py                    # Legacy answer-level evaluation script
+|-- eval_retrieval.py              # Retrieval evaluation script
 |-- hybrid_search.py               # BM25 and hybrid search helpers
+|-- index_manager.py               # Incremental FAISS IndexIDMap2 index management
 |-- rag_pipline.py                 # Core RAG pipeline
 |-- rag_service.py                 # Service layer used by MCP tools
 |-- service_context.py             # Shared logging, timing, and env snapshots
 |-- mcp_server_sdk.py              # Main FastMCP stdio server
 |-- mcp_server.py                  # Manual stdio MCP server for protocol debugging
 |-- mcp_client_demo.py             # Local MCP client demo
+|-- text_splitter.py               # Chunk cleaning and splitting logic
 |-- requirements.txt
 |-- .env.example
-|-- data/                          # Source documents and eval questions
+|-- data/
+|   |-- papers/                    # AI research paper corpus
+|   |-- retrieval_eval_questions.csv
+|   `-- eval_questions.csv         # Legacy evaluation questions
 |-- docs/                          # MCP design notes and development log
-|-- index/                         # Generated FAISS/chunks metadata; only .gitkeep is tracked
-`-- logs/                          # Local generated logs; ignored by Git
+|-- index/                         # Generated FAISS/chunks/manifest files; ignored by Git
+|-- logs/                          # Local generated logs and eval outputs; ignored by Git
+`-- models/                        # Local embedding/rerank model cache; ignored by Git
 ```
 
 ## Quick Start
 
-This project uses the existing Conda environment named `rag`.
+This project uses the Conda environment named `rag`.
 
 ```powershell
 conda activate rag
@@ -105,13 +113,123 @@ DEEPSEEK_API_KEY=your_deepseek_api_key
 
 The `.env` file is ignored by Git and should never be committed.
 
-## Build the Index
+## Local Embedding Model
 
-Run this after the first clone or whenever files under `data/` change:
+The current embedding model is configured in `config.py`:
+
+```python
+EMBEDDING_MODEL_NAME = os.path.join(BASE_DIR, "models", "embeddings", "bge-m3")
+```
+
+Expected local folder:
+
+```text
+models/embeddings/bge-m3/
+```
+
+If the model is not already present, download it from Hugging Face:
+
+```powershell
+huggingface-cli download BAAI/bge-m3 --local-dir models/embeddings/bge-m3
+```
+
+After the model is cached locally, offline mode avoids slow Hugging Face network checks:
+
+```powershell
+$env:HF_HUB_OFFLINE='1'
+$env:TRANSFORMERS_OFFLINE='1'
+```
+
+For RTX 50-series GPUs, use a PyTorch build that supports `sm_120`. This workspace has been tested with CUDA-enabled PyTorch and GPU encoding for rebuilds.
+
+## Corpus
+
+The current main corpus lives in:
+
+```text
+data/papers/
+```
+
+It includes papers and official research pages covering:
+
+- Deception, alignment faking, sleeper agents, sycophancy, and truth representations
+- Mechanistic interpretability, sparse autoencoders, monosemantic features, circuits, and benchmarks
+- Attention and saliency explanation reliability
+- Jailbreak benchmarks, constitutional classifiers, chain-of-thought monitorability, and dangerous capability evaluations
+
+Original security documents may still exist under `data/` as legacy sample sources, but the current UI and evaluation focus on AI research papers.
+
+## Chunking Logic
+
+Chunking is implemented in `text_splitter.py`.
+
+Current settings in `config.py`:
+
+```python
+CHUNK_STRATEGY_VERSION = "paper_section_token_parent_v1"
+CHUNK_TOKEN_SIZE = 450
+CHUNK_TOKEN_OVERLAP = 80
+MIN_CHUNK_TOKENS = 40
+PARENT_TOKEN_SIZE = 1500
+PARENT_TOKEN_OVERLAP = 150
+EMBEDDING_BATCH_SIZE = 8
+EMBEDDING_MAX_SEQ_LENGTH = 768
+```
+
+Current behavior:
+
+1. `document_loader.py` extracts text from PDF/TXT/Markdown/DOCX files.
+2. PDF pages are prefixed with markers such as `[Page 1]`; tables are converted to Markdown-style tables.
+3. `clean_text()` normalizes line endings, de-hyphenates broken PDF line wraps, compresses repeated blank lines, and removes repeated spaces.
+4. `split_into_sections()` detects paper-like headings such as Abstract, Introduction, Related Work, Method, Experiments, Results, Discussion, Limitations, Appendix, and References. It also handles long Transformer Circuits web-page lines by inserting section breaks around known headings.
+5. Each section is split into larger parent contexts of about `PARENT_TOKEN_SIZE` tokens with `PARENT_TOKEN_OVERLAP`.
+6. Each parent is split into child retrieval chunks of about `CHUNK_TOKEN_SIZE` tokens with `CHUNK_TOKEN_OVERLAP`.
+7. FAISS embeds the child chunk text. At answer time, the pipeline promotes matched children back to their parent context before building the LLM prompt.
+8. `build_chunks()` attaches metadata such as `paper_title`, `section_title`, `section_type`, `page_start`, `page_end`, `parent_id`, `parent_text`, `doc_id`, `chunk_uid`, `file_hash`, `chunk_id`, `chunk_token_count`, and `parent_token_count`.
+
+This means retrieval stays precise while answer generation receives enough surrounding context to handle paper summaries, comparisons, and synthesis questions.
+
+Known limitations:
+
+- PDF extraction can still produce noisy headings when a paper has complex columns, figures, or tables.
+- References and appendix content are indexed, but they are marked by section metadata rather than excluded.
+- Legacy security sample PDFs under `data/` are still indexed unless removed or moved out of the data folder.
+
+Changing chunk settings changes the vector contents. Run a full rebuild after changing chunking logic:
+
+```powershell
+conda run -n rag python index_manager.py rebuild
+```
+
+## Build and Update the Index
+
+Run this after the first clone or after major settings changes:
 
 ```powershell
 conda activate rag
 python build_index.py
+```
+
+`build_index.py` is a compatibility entrypoint. It delegates to `index_manager.py rebuild`.
+
+For daily document changes:
+
+```powershell
+conda run -n rag python index_manager.py scan
+conda run -n rag python index_manager.py update
+conda run -n rag python index_manager.py status
+```
+
+If embedding, chunking, or index settings change, run a full rebuild:
+
+```powershell
+conda run -n rag python index_manager.py rebuild
+```
+
+To remove one indexed document from the vector store without deleting the source file:
+
+```powershell
+conda run -n rag python index_manager.py remove --source papers/example.pdf
 ```
 
 Generated files:
@@ -120,9 +238,36 @@ Generated files:
 index/faiss.index
 index/chunks.json
 index/index_meta.json
+index/index_manifest.json
 ```
 
 These files are local generated artifacts and are ignored by Git.
+
+## Incremental Indexing
+
+`index_manager.py` uses `index/index_manifest.json` to track document hashes, vector ids, and index settings.
+
+The manifest records:
+
+- `doc_id`
+- `relative_path`
+- `file_hash`
+- `chunk_count`
+- `vector_ids`
+- embedding model
+- chunk settings
+- FAISS index type
+- embedding dimension
+
+When you run `update`, the manager:
+
+1. Scans supported files under `data/`.
+2. Compares current file hashes with the manifest.
+3. Removes vector ids for deleted or modified documents.
+4. Re-chunks and re-embeds only added or modified documents.
+5. Adds new vectors with stable explicit ids through FAISS `IndexIDMap2`.
+
+If the embedding model or chunking settings no longer match the manifest, `update` stops and asks for `rebuild`.
 
 ## Run the Streamlit App
 
@@ -131,13 +276,15 @@ conda activate rag
 streamlit run app.py
 ```
 
-After the embedding and rerank models are cached locally, offline mode can avoid slow Hugging Face network checks:
+Offline local-model mode:
 
 ```powershell
 $env:HF_HUB_OFFLINE='1'
 $env:TRANSFORMERS_OFFLINE='1'
 conda run -n rag python -m streamlit run app.py
 ```
+
+The app title is `AI Research Paper RAG Demo`. It includes example questions about alignment faking, Sleeper Agents, sparse autoencoders, and mechanistic interpretability.
 
 ## App Modes
 
@@ -149,12 +296,12 @@ Normal RAG uses one fixed chain:
 User Query -> Retrieval -> Rerank -> Prompt -> DeepSeek -> Answer + Sources
 ```
 
-It is suitable for direct security QA, such as:
+It is suitable for direct paper QA, such as:
 
 ```text
-What is SQL injection?
-How can an organization prepare for incident response?
-What are common risks for LLM applications?
+How do sparse autoencoders help mechanistic interpretability?
+Compare alignment faking and Sleeper Agents.
+What does Chain of Thought Monitorability claim is fragile?
 ```
 
 ### Agent RAG
@@ -165,11 +312,11 @@ Agent RAG adds a lightweight Query Router and tool selection layer:
 User Query -> Query Router -> Tool Selection -> Retrieval/Prompt -> Answer + Sources
 ```
 
-The router uses rule-based classification instead of an LLM classifier. Supported task types:
+The router uses rule-based classification instead of an LLM classifier.
 
 | Task type | Purpose |
 | --- | --- |
-| `fact_qa` | Direct factual security QA |
+| `fact_qa` | Direct factual paper QA |
 | `table_qa` | Table, field, column, or structured metadata questions |
 | `summary` | Summary or overview questions |
 | `compare` | Comparison or difference questions |
@@ -192,6 +339,8 @@ mcp_server_sdk.py
 ```
 
 It uses FastMCP and stdio transport. The manual server, `mcp_server.py`, is kept as a protocol debugging reference.
+
+Some MCP tool names still contain `security` for backwards compatibility with earlier versions. The underlying corpus and UI now focus on AI research papers.
 
 ### MCP Tools
 
@@ -238,16 +387,16 @@ For an MCP host that accepts stdio server configuration, use the Conda `rag` env
 ```json
 {
   "mcpServers": {
-    "security-rag-mcp": {
+    "ai-research-rag-mcp": {
       "command": "conda",
       "args": [
         "run",
         "-n",
         "rag",
         "python",
-        "D:\\project\\rag\\rag-demo-v2\\mcp_server_sdk.py"
+        "<absolute-path-to-rag-demo>\\mcp_server_sdk.py"
       ],
-      "cwd": "D:\\project\\rag\\rag-demo-v2",
+      "cwd": "<absolute-path-to-rag-demo>",
       "env": {
         "HF_HUB_OFFLINE": "1",
         "TRANSFORMERS_OFFLINE": "1",
@@ -258,7 +407,113 @@ For an MCP host that accepts stdio server configuration, use the Conda `rag` env
 }
 ```
 
-For retrieval-heavy MCP demos on Windows, the local demo adds `--preload-retrieval-imports` when needed. This pre-imports `faiss`, `numpy`, and `sentence_transformers` before stdio serving to avoid a slow first import inside a tool request.
+Important MCP note: stdio MCP uses stdout as the protocol channel. The MCP server redirects normal prints and model-loading messages to stderr so JSON-RPC frames are not polluted.
+
+## Retrieval Evaluation
+
+Retrieval evaluation questions are stored in:
+
+```text
+data/retrieval_eval_questions.csv
+```
+
+The current evaluation set contains 30 questions with:
+
+- positive and negative queries
+- easy, medium, and hard difficulty labels
+- query types such as fact, paraphrase, compare, synthesis, keyword, and negative
+- primary expected sources
+- partial sources for graded relevance
+- expected keywords
+
+Run the default retrieval evaluation:
+
+```powershell
+conda run -n rag python eval_retrieval.py --top-k 5 --candidate-k 20
+```
+
+Compare hybrid retrieval:
+
+```powershell
+conda run -n rag python eval_retrieval.py --top-k 5 --candidate-k 20 --hybrid
+```
+
+Compare reranking:
+
+```powershell
+conda run -n rag python eval_retrieval.py --top-k 5 --candidate-k 20 --rerank
+```
+
+Outputs:
+
+```text
+logs/retrieval_eval_results.csv
+logs/retrieval_eval_summary.json
+```
+
+The script reports metrics such as:
+
+- hit rate
+- top-1 primary and graded accuracy
+- primary source recall
+- graded recall
+- chunk precision
+- MRR
+- nDCG
+- keyword hit rate
+- final and candidate noise rate
+- negative high-confidence false positive rate
+- summaries by query type and difficulty
+
+This is still retrieval-only evaluation. It does not yet judge final answer faithfulness, citation correctness, or hallucination.
+
+## Answer-Level RAGAS Evaluation
+
+`eval_ragas.py` evaluates generated answers with RAGAS using the same question CSV:
+
+```text
+data/retrieval_eval_questions.csv
+```
+
+The CSV includes `reference_answer` for answerable questions, so the default RAGAS metrics are:
+
+```text
+faithfulness
+answer_relevancy
+context_precision
+context_recall
+answer_correctness
+```
+
+Run Normal RAG answer evaluation:
+
+```powershell
+conda run -n rag python eval_ragas.py
+```
+
+Run Agent RAG answer evaluation, including query-type routing for compare, synthesis, and literature-review questions:
+
+```powershell
+conda run -n rag python eval_ragas.py --agent
+```
+
+Outputs:
+
+```text
+logs/ragas_eval_dataset.jsonl
+logs/ragas_eval_results.csv
+logs/ragas_eval_summary.json
+```
+
+## Legacy Answer Evaluation
+
+`eval_rag.py` and `data/eval_questions.csv` are kept for earlier answer-level experiments.
+
+```powershell
+conda run -n rag python eval_rag.py
+```
+
+Use `eval_retrieval.py` for the current retrieval-focused evaluation workflow.
 
 ## Logs
 
@@ -268,37 +523,21 @@ For retrieval-heavy MCP demos on Windows, the local demo adds `--preload-retriev
 | `logs/agent_log.jsonl` | Agent RAG debug logs |
 | `logs/service_perf.log` | Service-layer timing and environment snapshots |
 | `logs/mcp_client_demo_stderr.log` | MCP server stderr captured by the local demo client |
-
-Important MCP note: stdio MCP uses stdout as the protocol channel. The MCP server redirects normal prints and model-loading messages to stderr so JSON-RPC frames are not polluted.
-
-## Evaluation
-
-Evaluation questions are stored in:
-
-```text
-data/eval_questions.csv
-```
-
-Run:
-
-```powershell
-conda run -n rag python eval_rag.py
-```
-
-Evaluation outputs are saved under `logs/` and treated as local generated artifacts.
+| `logs/retrieval_eval_results.csv` | Per-question retrieval evaluation output |
+| `logs/retrieval_eval_summary.json` | Summary retrieval evaluation metrics |
 
 ## Useful Development Commands
 
 Syntax check:
 
 ```powershell
-conda run -n rag python -m py_compile service_context.py rag_service.py rag_pipline.py mcp_server_sdk.py mcp_server.py mcp_client_demo.py
+conda run -n rag python -m py_compile service_context.py rag_service.py rag_pipline.py mcp_server_sdk.py mcp_server.py mcp_client_demo.py eval_retrieval.py index_manager.py
 ```
 
-Test the service layer directly without MCP:
+Test retrieval directly without MCP:
 
 ```powershell
-conda run -n rag python -c "from rag_service import benchmark_retrieval; import json; print(json.dumps(benchmark_retrieval(), ensure_ascii=False, indent=2))"
+conda run -n rag python -c "from rag_service import retrieve_security_chunks; import json; result=retrieve_security_chunks('How do sparse autoencoders help mechanistic interpretability?', top_k=3, use_rerank=False, include_text=False); print(json.dumps(result, ensure_ascii=False, indent=2))"
 ```
 
 View logs on Windows:
@@ -338,4 +577,4 @@ These files explain the MCP design, stdout/stderr handling, cache strategy, benc
 
 ## Design Goal
 
-The project intentionally avoids heavy agent frameworks. The goal is a lightweight, runnable, and explainable POC that demonstrates how to add Agent and MCP capabilities to an existing local RAG application with minimal architectural overhead.
+The project intentionally avoids heavy agent frameworks. The goal is a lightweight, runnable, and explainable POC that demonstrates how to build a local paper RAG system with incremental vector indexing, evaluation, Agent RAG, and MCP access.

@@ -15,6 +15,7 @@ NOTEBOOK_DIR = os.path.join(BASE_DIR, "notebooks")
 FAISS_INDEX_PATH = os.path.join(INDEX_DIR, "faiss.index")
 CHUNKS_PATH = os.path.join(INDEX_DIR, "chunks.json")
 INDEX_META_PATH = os.path.join(INDEX_DIR, "index_meta.json")
+INDEX_MANIFEST_PATH = os.path.join(INDEX_DIR, "index_manifest.json")
 
 QUERY_LOG_PATH = os.path.join(LOG_DIR, "query_logs.jsonl")
 EVAL_FILE_PATH = os.path.join(DATA_DIR, "eval_questions.csv")
@@ -37,6 +38,16 @@ SUPPORTED_EXTENSIONS = [".txt", ".md", ".docx", ".pdf"]
 CHUNK_SIZE = 500
 CHUNK_OVERLAP = 100
 MIN_CHUNK_SIZE = 60
+
+# Paper-aware chunking. The legacy character settings above are kept for
+# backward compatibility, but new indexes use token-sized child chunks and
+# larger parent contexts.
+CHUNK_STRATEGY_VERSION = "paper_section_token_parent_v1"
+CHUNK_TOKEN_SIZE = 450
+CHUNK_TOKEN_OVERLAP = 80
+MIN_CHUNK_TOKENS = 40
+PARENT_TOKEN_SIZE = 1500
+PARENT_TOKEN_OVERLAP = 150
 
 # =========================
 # Hybrid Search 配置
@@ -65,7 +76,9 @@ CATEGORY_OPTIONS = [
 # Embedding 与向量检索配置
 # =========================
 
-EMBEDDING_MODEL_NAME = "paraphrase-multilingual-MiniLM-L12-v2"
+EMBEDDING_MODEL_NAME = os.path.join(BASE_DIR, "models", "embeddings", "bge-m3")
+EMBEDDING_BATCH_SIZE = 8
+EMBEDDING_MAX_SEQ_LENGTH = 768
 
 # 第一阶段向量召回数量
 VECTOR_TOP_K = 8

@@ -166,13 +166,13 @@ def read_document(file_path: str) -> str:
 
 def load_documents(data_dir: str = DATA_DIR) -> List[Dict]:
     """
-    读取 data 文件夹下所有支持格式文档。
+    递归读取 data 文件夹下所有支持格式文档。
     """
     documents = []
 
     all_files = []
     for ext in SUPPORTED_EXTENSIONS:
-        all_files.extend(glob.glob(os.path.join(data_dir, f"*{ext}")))
+        all_files.extend(glob.glob(os.path.join(data_dir, "**", f"*{ext}"), recursive=True))
 
     all_files = sorted(all_files)
 
@@ -185,6 +185,7 @@ def load_documents(data_dir: str = DATA_DIR) -> List[Dict]:
 
         documents.append({
             "source": os.path.basename(file_path),
+            "relative_path": os.path.relpath(file_path, data_dir).replace("\\", "/"),
             "path": file_path,
             "extension": os.path.splitext(file_path)[1].lower(),
             "text": text

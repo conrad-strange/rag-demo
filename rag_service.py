@@ -9,6 +9,7 @@ from config import (
     CHUNKS_PATH,
     DOCUMENT_CATEGORIES,
     FAISS_INDEX_PATH,
+    INDEX_MANIFEST_PATH,
     FINAL_TOP_K,
     INDEX_META_PATH,
     SIMILARITY_THRESHOLD,
@@ -56,8 +57,20 @@ def _cached_chunks() -> List[Dict]:
 def _compact_source(doc: Dict) -> Dict:
     return {
         "source": doc.get("source", ""),
+        "doc_id": doc.get("doc_id"),
         "chunk_id": doc.get("chunk_id", ""),
+        "matched_child_id": doc.get("matched_child_id"),
+        "chunk_uid": doc.get("chunk_uid"),
+        "vector_id": doc.get("vector_id"),
+        "paper_title": doc.get("paper_title"),
+        "section_title": doc.get("section_title"),
+        "section_type": doc.get("section_type"),
+        "page_start": doc.get("page_start"),
+        "page_end": doc.get("page_end"),
+        "parent_id": doc.get("parent_id"),
+        "context_mode": doc.get("context_mode"),
         "category": doc.get("category", "general"),
+        "relative_path": doc.get("relative_path", ""),
         "path": doc.get("path", ""),
         "extension": doc.get("extension", ""),
         "vector_score": doc.get("vector_score"),
@@ -69,10 +82,15 @@ def _compact_source(doc: Dict) -> Dict:
 def _compact_chunk(doc: Dict, include_text: bool = True, max_chars: int = 1200) -> Dict:
     item = _compact_source(doc)
     item["chunk_length"] = doc.get("chunk_length")
+    item["context_length"] = doc.get("context_length")
+    item["chunk_token_count"] = doc.get("chunk_token_count")
+    item["parent_token_count"] = doc.get("parent_token_count")
     if include_text:
         text = doc.get("text", "")
         item["text"] = text[:max_chars]
         item["text_truncated"] = len(text) > max_chars
+        if doc.get("retrieval_text") and doc.get("retrieval_text") != text:
+            item["retrieval_text"] = doc["retrieval_text"][:max_chars]
     return item
 
 
@@ -106,12 +124,22 @@ def get_index_status() -> Dict:
         "faiss_index_exists": os.path.exists(FAISS_INDEX_PATH),
         "chunks_exists": os.path.exists(CHUNKS_PATH),
         "index_meta_exists": os.path.exists(INDEX_META_PATH),
+        "index_manifest_exists": os.path.exists(INDEX_MANIFEST_PATH),
         "chunk_count": len(chunks),
         "document_count": meta.get("document_count"),
         "embedding_model": meta.get("embedding_model"),
         "embedding_dimension": meta.get("embedding_dimension"),
+        "embedding_batch_size": meta.get("embedding_batch_size"),
+        "embedding_max_seq_length": meta.get("embedding_max_seq_length"),
         "faiss_index_type": meta.get("faiss_index_type"),
+        "chunk_strategy": meta.get("chunk_strategy"),
+        "chunk_token_size": meta.get("chunk_token_size"),
+        "chunk_token_overlap": meta.get("chunk_token_overlap"),
+        "parent_token_size": meta.get("parent_token_size"),
+        "parent_token_overlap": meta.get("parent_token_overlap"),
+        "manifest_path": meta.get("manifest_path"),
         "created_at": meta.get("created_at"),
+        "updated_at": meta.get("updated_at"),
         "documents": meta.get("documents", []),
     }
 
@@ -127,17 +155,20 @@ def list_knowledge_sources() -> Dict:
             source = chunk.get("source", "")
             if not source:
                 continue
+            key = chunk.get("relative_path", source)
             seen.setdefault(
-                source,
+                key,
                 {
                     "source": source,
+                    "doc_id": chunk.get("doc_id"),
+                    "relative_path": key,
                     "category": chunk.get("category", DOCUMENT_CATEGORIES.get(source, "general")),
                     "path": chunk.get("path", ""),
                     "extension": chunk.get("extension", ""),
                     "chunk_count": 0,
                 },
             )
-            seen[source]["chunk_count"] += 1
+            seen[key]["chunk_count"] += 1
         documents = list(seen.values())
 
     return {
