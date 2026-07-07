@@ -34,6 +34,8 @@ class SourceItem(BaseModel):
 class ChatRequest(BaseModel):
     query: str = Field(..., min_length=1)
     session_id: Optional[str] = None
+    use_memory: bool = True
+    memory_turns: int = Field(default=4, ge=1, le=10)
     category: str = "all"
     vector_top_k: Optional[int] = Field(default=None, ge=1, le=50)
     final_top_k: Optional[int] = Field(default=None, ge=1, le=20)
@@ -45,6 +47,8 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     chat_message_id: Optional[int] = None
+    memory_used: bool = False
+    memory_history_count: int = 0
     query: str
     answer: str
     status: str

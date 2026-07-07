@@ -326,6 +326,34 @@ def record_chat_message(
         return int(cursor.lastrowid)
 
 
+def list_recent_chat_messages(session_id: str, limit: int = 6) -> List[Dict[str, Any]]:
+    init_db()
+    if not session_id:
+        return []
+    with connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT * FROM chat_messages
+            WHERE session_id = ?
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (session_id, int(limit)),
+        ).fetchall()
+
+    messages = [dict(row) for row in rows]
+    messages.reverse()
+    for message in messages:
+        if message.get("sources_json"):
+            message["sources"] = json.loads(message.pop("sources_json"))
+        else:
+            message.pop("sources_json", None)
+            message["sources"] = []
+        message["use_hybrid"] = bool(message.get("use_hybrid"))
+        message["use_rerank"] = bool(message.get("use_rerank"))
+    return messages
+
+
 def migrate_upload_manifest(manifest_path: str = UPLOAD_MANIFEST_PATH) -> None:
     if not os.path.exists(manifest_path):
         return

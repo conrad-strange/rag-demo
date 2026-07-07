@@ -386,8 +386,24 @@ class RAGPipeline:
 
         pairs = [[query, item["text"]] for item in candidates]
 
-        with timed_stage("rerank cost", candidate_count=len(candidates), final_top_k=final_top_k):
-            scores = self.reranker.compute_score(pairs)
+        try:
+            with timed_stage("rerank cost", candidate_count=len(candidates), final_top_k=final_top_k):
+                scores = self.reranker.compute_score(pairs)
+        except Exception as exc:
+            log_event(
+                "rerank failed; falling back to vector order",
+                error=str(exc),
+                candidate_count=len(candidates),
+            )
+            print("rerank failed; falling back to vector order.")
+            print("reason:", str(exc))
+            self.reranker = None
+            self.use_rerank = False
+            return self._select_parent_contexts(
+                candidates,
+                final_top_k=final_top_k,
+                max_per_source=max_per_source,
+            )
 
         if isinstance(scores, float):
             scores = [scores]

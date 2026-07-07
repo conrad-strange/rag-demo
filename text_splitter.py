@@ -343,7 +343,7 @@ def _load_fast_tokenizer():
             use_fast=True,
             fix_mistral_regex=True,
         )
-        if getattr(tokenizer, "is_fast", False):
+        if getattr(tokenizer, "is_fast", False) and hasattr(tokenizer, "prepare_for_model"):
             tokenizer.model_max_length = 10**9
             return tokenizer
     except Exception:

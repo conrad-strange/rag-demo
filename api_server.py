@@ -3,6 +3,7 @@ from typing import Callable
 from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, UploadFile, status
 
 from auth import require_api_key
+from conversation_memory import apply_memory_to_query, load_conversation_memory
 from db import init_db, migrate_upload_manifest, record_chat_message
 from rag_service import (
     agent_security_answer,
@@ -136,9 +137,15 @@ def chat(
     request: ChatRequest,
     _: None = Depends(require_api_key),
 ) -> dict:
+    memory = load_conversation_memory(
+        session_id=request.session_id,
+        enabled=request.use_memory,
+        turns=request.memory_turns,
+    )
+    effective_query = apply_memory_to_query(request.query, memory)
     result = _service_call(
         answer_security_question,
-        query=request.query,
+        query=effective_query,
         category=request.category,
         vector_top_k=request.vector_top_k,
         final_top_k=request.final_top_k,
@@ -147,6 +154,9 @@ def chat(
         use_rerank=request.use_rerank,
         save_log=request.save_log,
     )
+    result["query"] = request.query
+    result["memory_used"] = bool(memory.get("prefix"))
+    result["memory_history_count"] = int(memory.get("history_count", 0))
     result["chat_message_id"] = record_chat_message(
         mode="normal",
         session_id=request.session_id,
@@ -174,9 +184,15 @@ def agent_chat(
     request: ChatRequest,
     _: None = Depends(require_api_key),
 ) -> dict:
+    memory = load_conversation_memory(
+        session_id=request.session_id,
+        enabled=request.use_memory,
+        turns=request.memory_turns,
+    )
+    effective_query = apply_memory_to_query(request.query, memory)
     result = _service_call(
         agent_security_answer,
-        query=request.query,
+        query=effective_query,
         category=request.category,
         vector_top_k=request.vector_top_k,
         final_top_k=request.final_top_k,
@@ -185,6 +201,9 @@ def agent_chat(
         use_rerank=request.use_rerank,
         save_log=request.save_log,
     )
+    result["query"] = request.query
+    result["memory_used"] = bool(memory.get("prefix"))
+    result["memory_history_count"] = int(memory.get("history_count", 0))
     result["chat_message_id"] = record_chat_message(
         mode="agent",
         session_id=request.session_id,
