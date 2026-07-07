@@ -61,17 +61,24 @@ MCP does not replace the RAG pipeline. It wraps the same local RAG and Agent RAG
 ```text
 rag-demo/
 |-- app.py                         # Streamlit app: Normal RAG and Agent RAG
+|-- api_server.py                  # FastAPI backend for RAG, Agent RAG, document upload, and index status
+|-- auth.py                        # Simple API key authentication dependency
 |-- agent_router.py                # Query Router + Tool Calling style Agent workflow
 |-- build_index.py                 # Compatibility entrypoint for full index rebuild
 |-- config.py                      # Paths, chunking, retrieval, model, and LLM config
 |-- document_loader.py             # PDF/TXT/Markdown/DOCX document loading
+|-- embedding_utils.py             # Embedding device resolution: auto GPU with CPU fallback
 |-- eval_rag.py                    # Legacy answer-level evaluation script
 |-- eval_retrieval.py              # Retrieval evaluation script
+|-- frontend_app.py                # Streamlit frontend that calls the FastAPI backend
 |-- hybrid_search.py               # BM25 and hybrid search helpers
 |-- index_manager.py               # Incremental FAISS IndexIDMap2 index management
+|-- index_tasks.py                 # Background indexing task runner with in-process write lock
 |-- rag_pipline.py                 # Core RAG pipeline
 |-- rag_service.py                 # Service layer used by MCP tools
+|-- schemas.py                     # Pydantic request/response schemas
 |-- service_context.py             # Shared logging, timing, and env snapshots
+|-- storage.py                     # Safe document upload storage and upload manifest helpers
 |-- mcp_server_sdk.py              # Main FastMCP stdio server
 |-- mcp_server.py                  # Manual stdio MCP server for protocol debugging
 |-- mcp_client_demo.py             # Local MCP client demo
@@ -109,9 +116,50 @@ Create a `.env` file in the project root:
 
 ```env
 DEEPSEEK_API_KEY=your_deepseek_api_key
+APP_API_KEY=change-me
+EMBEDDING_DEVICE=auto
+MAX_UPLOAD_BYTES=26214400
 ```
 
 The `.env` file is ignored by Git and should never be committed.
+
+## FastAPI Backend and API Frontend
+
+The project now includes an HTTP backend that reuses `rag_service.py` instead of duplicating RAG logic inside the web layer.
+
+Start the FastAPI backend:
+
+```powershell
+conda activate rag
+uvicorn api_server:app --host 127.0.0.1 --port 8000 --reload
+```
+
+Useful endpoints:
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /health` | Service health check |
+| `GET /index/status` | FAISS/chunks/manifest status |
+| `GET /sources` | Indexed knowledge sources |
+| `GET /documents` | Uploaded document records from `data/uploads/upload_manifest.json` |
+| `POST /documents/upload` | Upload a PDF/TXT/MD/DOCX, save it safely, queue indexing, and update status |
+| `POST /chat` | Normal RAG answer |
+| `POST /agent/chat` | Agent RAG answer |
+
+If `APP_API_KEY` is set to a real value, protected endpoints expect:
+
+```text
+Authorization: Bearer <APP_API_KEY>
+```
+
+Run the API-backed Streamlit frontend:
+
+```powershell
+conda activate rag
+streamlit run frontend_app.py
+```
+
+The original `app.py` is still kept as a local debug UI that imports `RAGPipeline` directly. `frontend_app.py` is the engineering-style UI that calls the FastAPI backend over HTTP.
 
 ## Local Embedding Model
 

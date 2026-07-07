@@ -13,3 +13,7 @@ FlagEmbedding
 rank-bm25
 jieba
 mcp
+fastapi
+uvicorn
+requests
+python-multipart

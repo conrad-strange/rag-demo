@@ -8,6 +8,8 @@ import os
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 DATA_DIR = os.path.join(BASE_DIR, "data")
+UPLOAD_DIR = os.path.join(DATA_DIR, "uploads")
+UPLOAD_MANIFEST_PATH = os.path.join(UPLOAD_DIR, "upload_manifest.json")
 INDEX_DIR = os.path.join(BASE_DIR, "index")
 LOG_DIR = os.path.join(BASE_DIR, "logs")
 NOTEBOOK_DIR = os.path.join(BASE_DIR, "notebooks")
@@ -29,6 +31,7 @@ THRESHOLD_COMPARE_PATH = os.path.join(LOG_DIR, "threshold_compare.csv")
 # =========================
 
 SUPPORTED_EXTENSIONS = [".txt", ".md", ".docx", ".pdf"]
+MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(25 * 1024 * 1024)))
 
 
 # =========================
@@ -77,6 +80,7 @@ CATEGORY_OPTIONS = [
 # =========================
 
 EMBEDDING_MODEL_NAME = os.path.join(BASE_DIR, "models", "embeddings", "bge-m3")
+EMBEDDING_DEVICE = os.getenv("EMBEDDING_DEVICE", "auto")
 EMBEDDING_BATCH_SIZE = 8
 EMBEDDING_MAX_SEQ_LENGTH = 768
 
@@ -116,6 +120,7 @@ LLM_TEMPERATURE = 0.2
 
 def ensure_dirs():
     os.makedirs(DATA_DIR, exist_ok=True)
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
     os.makedirs(INDEX_DIR, exist_ok=True)
     os.makedirs(LOG_DIR, exist_ok=True)
     os.makedirs(NOTEBOOK_DIR, exist_ok=True)

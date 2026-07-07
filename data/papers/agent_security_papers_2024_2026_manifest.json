@@ -1,0 +1,182 @@
+﻿[
+    {
+        "id":  "2403.02691",
+        "year":  2024,
+        "title":  "InjecAgent: Benchmarking Indirect Prompt Injections in Tool-Integrated Large Language Model Agents",
+        "url":  "https://arxiv.org/abs/2403.02691",
+        "pdf_url":  "https://arxiv.org/pdf/2403.02691",
+        "file":  "2403.02691_InjecAgent_Benchmarking_Indirect_Prompt_Injections_in_Tool_Integrated_LLM_Agents.pdf",
+        "bytes":  3183277
+    },
+    {
+        "id":  "2406.13352",
+        "year":  2024,
+        "title":  "AgentDojo: A Dynamic Environment to Evaluate Prompt Injection Attacks and Defenses for LLM Agents",
+        "url":  "https://arxiv.org/abs/2406.13352",
+        "pdf_url":  "https://arxiv.org/pdf/2406.13352",
+        "file":  "2406.13352_AgentDojo_Dynamic_Environment_to_Evaluate_Prompt_Injection_Attacks_and_Defenses.pdf",
+        "bytes":  1042076
+    },
+    {
+        "id":  "2407.12784",
+        "year":  2024,
+        "title":  "AgentPoison: Red-teaming LLM Agents via Poisoning Memory or Knowledge Bases",
+        "url":  "https://arxiv.org/abs/2407.12784",
+        "pdf_url":  "https://arxiv.org/pdf/2407.12784",
+        "file":  "2407.12784_AgentPoison_Red_Teaming_LLM_Agents_via_Poisoning_Memory_or_Knowledge_Bases.pdf",
+        "bytes":  5284297
+    },
+    {
+        "id":  "2407.19354",
+        "year":  2024,
+        "title":  "The Emerged Security and Privacy of LLM Agent: A Survey with Case Studies",
+        "url":  "https://arxiv.org/abs/2407.19354",
+        "pdf_url":  "https://arxiv.org/pdf/2407.19354",
+        "file":  "2407.19354_Emerged_Security_and_Privacy_of_LLM_Agent_Survey.pdf",
+        "bytes":  27981657
+    },
+    {
+        "id":  "2410.02644",
+        "year":  2024,
+        "title":  "Agent Security Bench (ASB): Formalizing and Benchmarking Attacks and Defenses in LLM-based Agents",
+        "url":  "https://arxiv.org/abs/2410.02644",
+        "pdf_url":  "https://arxiv.org/pdf/2410.02644",
+        "file":  "2410.02644_Agent_Security_Bench_ASB.pdf",
+        "bytes":  922877
+    },
+    {
+        "id":  "2410.14923",
+        "year":  2024,
+        "title":  "Imprompter: Tricking LLM Agents into Improper Tool Use",
+        "url":  "https://arxiv.org/abs/2410.14923",
+        "pdf_url":  "https://arxiv.org/pdf/2410.14923",
+        "file":  "2410.14923_Imprompter_Tricking_LLM_Agents_into_Improper_Tool_Use.pdf",
+        "bytes":  5307953
+    },
+    {
+        "id":  "2506.08837",
+        "year":  2025,
+        "title":  "Design Patterns for Securing LLM Agents against Prompt Injections",
+        "url":  "https://arxiv.org/abs/2506.08837",
+        "pdf_url":  "https://arxiv.org/pdf/2506.08837",
+        "file":  "2506.08837_Design_Patterns_for_Securing_LLM_Agents_against_Prompt_Injections.pdf",
+        "bytes":  1358691
+    },
+    {
+        "id":  "2506.23844",
+        "year":  2025,
+        "title":  "A Survey on Autonomy-Induced Security Risks in Large Model-Based Agents",
+        "url":  "https://arxiv.org/abs/2506.23844",
+        "pdf_url":  "https://arxiv.org/pdf/2506.23844",
+        "file":  "2506.23844_Survey_on_Autonomy_Induced_Security_Risks_in_Large_Model_Based_Agents.pdf",
+        "bytes":  1063374
+    },
+    {
+        "id":  "2507.06850",
+        "year":  2025,
+        "title":  "The Dark Side of LLMs: Agent-based Attacks for Complete Computer Takeover",
+        "url":  "https://arxiv.org/abs/2507.06850",
+        "pdf_url":  "https://arxiv.org/pdf/2507.06850",
+        "file":  "2507.06850_Dark_Side_of_LLMs_Agent_based_Attacks_for_Complete_Computer_Takeover.pdf",
+        "bytes":  1149034
+    },
+    {
+        "id":  "2508.15310",
+        "year":  2025,
+        "title":  "IPIGuard: A Novel Tool Dependency Graph-Based Defense Against Indirect Prompt Injection in LLM Agents",
+        "url":  "https://arxiv.org/abs/2508.15310",
+        "pdf_url":  "https://arxiv.org/pdf/2508.15310",
+        "file":  "2508.15310_IPIGuard_Tool_Dependency_Graph_Defense_Against_Indirect_Prompt_Injection.pdf",
+        "bytes":  612766
+    },
+    {
+        "id":  "2509.22830",
+        "year":  2025,
+        "title":  "ChatInject: Abusing Chat Templates for Prompt Injection in LLM Agents",
+        "url":  "https://arxiv.org/abs/2509.22830",
+        "pdf_url":  "https://arxiv.org/pdf/2509.22830",
+        "file":  "2509.22830_ChatInject_Abusing_Chat_Templates_for_Prompt_Injection_in_LLM_Agents.pdf",
+        "bytes":  822670
+    },
+    {
+        "id":  "2511.15759",
+        "year":  2025,
+        "title":  "Securing AI Agents Against Prompt Injection Attacks",
+        "url":  "https://arxiv.org/abs/2511.15759",
+        "pdf_url":  "https://arxiv.org/pdf/2511.15759",
+        "file":  "2511.15759_Securing_AI_Agents_Against_Prompt_Injection_Attacks.pdf",
+        "bytes":  319314
+    },
+    {
+        "id":  "2511.20920",
+        "year":  2025,
+        "title":  "Securing the Model Context Protocol (MCP): Risks, Controls, and Governance",
+        "url":  "https://arxiv.org/abs/2511.20920",
+        "pdf_url":  "https://arxiv.org/pdf/2511.20920",
+        "file":  "2511.20920_Securing_Model_Context_Protocol_Risks_Controls_and_Governance.pdf",
+        "bytes":  247836
+    },
+    {
+        "id":  "2512.00136",
+        "year":  2025,
+        "title":  "An Empirical Study on the Security Vulnerabilities of GPTs",
+        "url":  "https://arxiv.org/abs/2512.00136",
+        "pdf_url":  "https://arxiv.org/pdf/2512.00136",
+        "file":  "2512.00136_Empirical_Study_on_Security_Vulnerabilities_of_GPTs.pdf",
+        "bytes":  7562931
+    },
+    {
+        "id":  "2512.08290",
+        "year":  2025,
+        "title":  "Systematization of Knowledge: Security and Safety in the Model Context Protocol Ecosystem",
+        "url":  "https://arxiv.org/abs/2512.08290",
+        "pdf_url":  "https://arxiv.org/pdf/2512.08290",
+        "file":  "2512.08290_SoK_Security_and_Safety_in_Model_Context_Protocol_Ecosystem.pdf",
+        "bytes":  5210848
+    },
+    {
+        "id":  "2602.22724",
+        "year":  2026,
+        "title":  "AgentSentry: Mitigating Indirect Prompt Injection in LLM Agents via Temporal Causal Diagnostics and Context Purification",
+        "url":  "https://arxiv.org/abs/2602.22724",
+        "pdf_url":  "https://arxiv.org/pdf/2602.22724",
+        "file":  "2602.22724_AgentSentry_Mitigating_Indirect_Prompt_Injection_in_LLM_Agents.pdf",
+        "bytes":  1532920
+    },
+    {
+        "id":  "2603.12230",
+        "year":  2026,
+        "title":  "Security Considerations for Artificial Intelligence Agents",
+        "url":  "https://arxiv.org/abs/2603.12230",
+        "pdf_url":  "https://arxiv.org/pdf/2603.12230",
+        "file":  "2603.12230_Security_Considerations_for_Artificial_Intelligence_Agents.pdf",
+        "bytes":  413457
+    },
+    {
+        "id":  "2606.04329",
+        "year":  2026,
+        "title":  "From Untrusted Input to Trusted Memory: A Systematic Study of Memory Poisoning Attacks in LLM Agents",
+        "url":  "https://arxiv.org/abs/2606.04329",
+        "pdf_url":  "https://arxiv.org/pdf/2606.04329",
+        "file":  "2606.04329_Systematic_Study_of_Memory_Poisoning_Attacks_in_LLM_Agents.pdf",
+        "bytes":  4981471
+    },
+    {
+        "id":  "2606.10749",
+        "year":  2026,
+        "title":  "Toward Secure LLM Agents: Threat Surfaces, Attacks, Defenses, and Evaluation",
+        "url":  "https://arxiv.org/abs/2606.10749",
+        "pdf_url":  "https://arxiv.org/pdf/2606.10749",
+        "file":  "2606.10749_Toward_Secure_LLM_Agents_Threat_Surfaces_Attacks_Defenses_Evaluation.pdf",
+        "bytes":  1541012
+    },
+    {
+        "id":  "2606.28450",
+        "year":  2026,
+        "title":  "LLM agents security duality: a comprehensive survey of self-security and empowered cybersecurity",
+        "url":  "https://arxiv.org/abs/2606.28450",
+        "pdf_url":  "https://arxiv.org/pdf/2606.28450",
+        "file":  "2606.28450_LLM_Agents_Security_Duality_Survey.pdf",
+        "bytes":  2919058
+    }
+]

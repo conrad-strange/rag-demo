@@ -18,6 +18,7 @@ from config import (
     DATA_DIR,
     DOCUMENT_CATEGORIES,
     EMBEDDING_BATCH_SIZE,
+    EMBEDDING_DEVICE,
     EMBEDDING_MAX_SEQ_LENGTH,
     EMBEDDING_MODEL_NAME,
     FAISS_INDEX_PATH,
@@ -32,6 +33,7 @@ from config import (
     ensure_dirs,
 )
 from document_loader import read_document
+from embedding_utils import resolve_embedding_device
 from text_splitter import build_chunks
 
 
@@ -242,7 +244,9 @@ def assign_vector_ids(chunks: List[Dict], manifest: Dict) -> None:
 def load_embedder():
     from sentence_transformers import SentenceTransformer
 
-    embedder = SentenceTransformer(EMBEDDING_MODEL_NAME)
+    device = resolve_embedding_device(EMBEDDING_DEVICE)
+    print(f"Loading embedding model on device: {device}")
+    embedder = SentenceTransformer(EMBEDDING_MODEL_NAME, device=device)
     if EMBEDDING_MAX_SEQ_LENGTH:
         embedder.max_seq_length = EMBEDDING_MAX_SEQ_LENGTH
         try:

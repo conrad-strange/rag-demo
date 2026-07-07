@@ -12,6 +12,7 @@ from config import (
     CHUNKS_PATH,
     INDEX_MANIFEST_PATH,
     QUERY_LOG_PATH,
+    EMBEDDING_DEVICE,
     EMBEDDING_MODEL_NAME,
     EMBEDDING_MAX_SEQ_LENGTH,
     USE_RERANK,
@@ -23,6 +24,7 @@ from config import (
     DEEPSEEK_MODEL_NAME,
     LLM_TEMPERATURE
 )
+from embedding_utils import resolve_embedding_device
 from service_context import env_snapshot, log_event, timed_stage
 
 
@@ -74,8 +76,9 @@ class RAGPipeline:
         with timed_stage("load embedding model cost", embedding_model=EMBEDDING_MODEL_NAME):
             from sentence_transformers import SentenceTransformer
 
-            print("Loading embedding model...")
-            self.embedder = SentenceTransformer(EMBEDDING_MODEL_NAME)
+            device = resolve_embedding_device(EMBEDDING_DEVICE)
+            print(f"Loading embedding model on device: {device}")
+            self.embedder = SentenceTransformer(EMBEDDING_MODEL_NAME, device=device)
             if EMBEDDING_MAX_SEQ_LENGTH:
                 self.embedder.max_seq_length = EMBEDDING_MAX_SEQ_LENGTH
                 try:
@@ -85,6 +88,7 @@ class RAGPipeline:
             log_event(
                 "embedding model loaded",
                 embedding_model=EMBEDDING_MODEL_NAME,
+                embedding_device=device,
                 model_path=getattr(self.embedder, "model_name_or_path", EMBEDDING_MODEL_NAME),
             )
 

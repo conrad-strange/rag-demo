@@ -118,6 +118,11 @@ data/**/*.pdf
 # data/**/*.docx
 # data/**/*.xlsx
 
+# Uploaded files and upload manifests are local runtime state. Keep the folder
+# shape, but do not commit user-uploaded documents or task status records.
+data/uploads/*
+!data/uploads/.gitkeep
+
 # =========================
 # Keep folder structure
 # =========================
