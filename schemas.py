@@ -33,6 +33,7 @@ class SourceItem(BaseModel):
 
 class ChatRequest(BaseModel):
     query: str = Field(..., min_length=1)
+    session_id: Optional[str] = None
     category: str = "all"
     vector_top_k: Optional[int] = Field(default=None, ge=1, le=50)
     final_top_k: Optional[int] = Field(default=None, ge=1, le=20)
@@ -43,6 +44,7 @@ class ChatRequest(BaseModel):
 
 
 class ChatResponse(BaseModel):
+    chat_message_id: Optional[int] = None
     query: str
     answer: str
     status: str
@@ -87,6 +89,7 @@ class SourcesResponse(BaseModel):
 
 
 class UploadResponse(BaseModel):
+    index_job_id: Optional[str] = None
     document_id: str
     filename: str
     original_filename: str
@@ -108,7 +111,8 @@ class UploadResponse(BaseModel):
 class DocumentsResponse(BaseModel):
     document_count: int
     documents: List[UploadResponse]
-    manifest_path: str
+    db_path: Optional[str] = None
+    manifest_path: Optional[str] = None
     updated_at: Optional[str] = None
 
 

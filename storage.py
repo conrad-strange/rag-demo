@@ -1,5 +1,4 @@
 import hashlib
-import json
 import os
 import re
 import uuid
@@ -13,8 +12,8 @@ from config import (
     MAX_UPLOAD_BYTES,
     SUPPORTED_EXTENSIONS,
     UPLOAD_DIR,
-    UPLOAD_MANIFEST_PATH,
 )
+from db import insert_document, list_documents, migrate_upload_manifest, update_document_status
 
 
 class UploadValidationError(ValueError):
@@ -56,33 +55,16 @@ def now_str() -> str:
 
 
 def load_upload_manifest() -> Dict:
-    with _manifest_lock:
-        ensure_upload_dir()
-        if not os.path.exists(UPLOAD_MANIFEST_PATH):
-            return {"schema_version": 1, "documents": []}
-        with open(UPLOAD_MANIFEST_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    data.setdefault("schema_version", 1)
-    data.setdefault("documents", [])
-    return data
+    return list_documents()
 
 
 def save_upload_manifest(manifest: Dict) -> None:
-    with _manifest_lock:
-        ensure_upload_dir()
-        tmp_path = f"{UPLOAD_MANIFEST_PATH}.tmp"
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            json.dump(manifest, f, ensure_ascii=False, indent=2)
-        os.replace(tmp_path, UPLOAD_MANIFEST_PATH)
+    raise RuntimeError("upload_manifest.json has been replaced by SQLite storage.")
 
 
 def record_uploaded_document(record: Dict) -> None:
     with _manifest_lock:
-        manifest = load_upload_manifest()
-        documents = manifest.setdefault("documents", [])
-        documents.append(record)
-        manifest["updated_at"] = now_str()
-        save_upload_manifest(manifest)
+        insert_document(record)
 
 
 def update_uploaded_document_status(
@@ -93,45 +75,18 @@ def update_uploaded_document_status(
     index_result: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict]:
     with _manifest_lock:
-        manifest = load_upload_manifest()
-        now = now_str()
-        for document in manifest.get("documents", []):
-            if document.get("document_id") != document_id:
-                continue
-
-            document["status"] = status
-            if indexed is not None:
-                document["indexed"] = indexed
-            if error_message is None:
-                document.pop("error_message", None)
-            else:
-                document["error_message"] = error_message
-            if index_result is not None:
-                document["index_result"] = index_result
-
-            if status == "queued":
-                document["queued_at"] = now
-            elif status == "indexing":
-                document["index_started_at"] = now
-            elif status in ("indexed", "failed"):
-                document["index_finished_at"] = now
-
-            manifest["updated_at"] = now
-            save_upload_manifest(manifest)
-            return document
-    return None
+        return update_document_status(
+            document_id=document_id,
+            status=status,
+            indexed=indexed,
+            error_message=error_message,
+            index_result=index_result,
+        )
 
 
 def list_uploaded_documents() -> Dict:
-    manifest = load_upload_manifest()
-    documents: List[Dict] = list(manifest.get("documents", []))
-    documents.sort(key=lambda item: item.get("created_at", ""), reverse=True)
-    return {
-        "document_count": len(documents),
-        "documents": documents,
-        "manifest_path": UPLOAD_MANIFEST_PATH,
-        "updated_at": manifest.get("updated_at"),
-    }
+    migrate_upload_manifest()
+    return list_documents()
 
 
 def save_upload_file(file_obj: BinaryIO, filename: str, status: str = "stored") -> Dict:

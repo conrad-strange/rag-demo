@@ -115,6 +115,9 @@ mcp_settings.local.json
 # without uploading large raw PDFs.
 # =========================
 data/**/*.pdf
+data/*.db
+data/*.sqlite
+data/*.sqlite3
 # data/**/*.docx
 # data/**/*.xlsx
 

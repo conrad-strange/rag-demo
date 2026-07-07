@@ -3,6 +3,7 @@ from typing import Callable
 from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, UploadFile, status
 
 from auth import require_api_key
+from db import init_db, migrate_upload_manifest, record_chat_message
 from rag_service import (
     agent_security_answer,
     answer_security_question,
@@ -29,6 +30,12 @@ app = FastAPI(
     version="0.1.0",
     description="HTTP API wrapper around the local RAG and Agent RAG service layer.",
 )
+
+
+@app.on_event("startup")
+def startup() -> None:
+    init_db()
+    migrate_upload_manifest()
 
 
 def _service_call(func: Callable, **kwargs):
@@ -129,7 +136,7 @@ def chat(
     request: ChatRequest,
     _: None = Depends(require_api_key),
 ) -> dict:
-    return _service_call(
+    result = _service_call(
         answer_security_question,
         query=request.query,
         category=request.category,
@@ -140,6 +147,18 @@ def chat(
         use_rerank=request.use_rerank,
         save_log=request.save_log,
     )
+    result["chat_message_id"] = record_chat_message(
+        mode="normal",
+        session_id=request.session_id,
+        query=result.get("query", request.query),
+        answer=result.get("answer", ""),
+        status=result.get("status", ""),
+        best_score=result.get("best_score"),
+        use_hybrid=result.get("use_hybrid", False),
+        use_rerank=result.get("use_rerank", False),
+        sources=result.get("sources", []),
+    )
+    return result
 
 
 @app.post(
@@ -155,7 +174,7 @@ def agent_chat(
     request: ChatRequest,
     _: None = Depends(require_api_key),
 ) -> dict:
-    return _service_call(
+    result = _service_call(
         agent_security_answer,
         query=request.query,
         category=request.category,
@@ -166,3 +185,17 @@ def agent_chat(
         use_rerank=request.use_rerank,
         save_log=request.save_log,
     )
+    result["chat_message_id"] = record_chat_message(
+        mode="agent",
+        session_id=request.session_id,
+        query=result.get("query", request.query),
+        answer=result.get("answer", ""),
+        status=result.get("status", ""),
+        best_score=result.get("best_score"),
+        use_hybrid=result.get("use_hybrid", False),
+        use_rerank=result.get("use_rerank", False),
+        sources=result.get("sources", []),
+        task_type=result.get("task_type"),
+        tool_used=result.get("tool_used"),
+    )
+    return result

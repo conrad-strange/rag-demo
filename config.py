@@ -8,6 +8,7 @@ import os
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 DATA_DIR = os.path.join(BASE_DIR, "data")
+DATABASE_PATH = os.getenv("DATABASE_PATH", os.path.join(DATA_DIR, "rag_demo.db"))
 UPLOAD_DIR = os.path.join(DATA_DIR, "uploads")
 UPLOAD_MANIFEST_PATH = os.path.join(UPLOAD_DIR, "upload_manifest.json")
 INDEX_DIR = os.path.join(BASE_DIR, "index")

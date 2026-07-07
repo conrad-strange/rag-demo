@@ -66,6 +66,7 @@ rag-demo/
 |-- agent_router.py                # Query Router + Tool Calling style Agent workflow
 |-- build_index.py                 # Compatibility entrypoint for full index rebuild
 |-- config.py                      # Paths, chunking, retrieval, model, and LLM config
+|-- db.py                          # SQLite tables for documents, index jobs, and chat messages
 |-- document_loader.py             # PDF/TXT/Markdown/DOCX document loading
 |-- embedding_utils.py             # Embedding device resolution: auto GPU with CPU fallback
 |-- eval_rag.py                    # Legacy answer-level evaluation script
@@ -119,6 +120,7 @@ DEEPSEEK_API_KEY=your_deepseek_api_key
 APP_API_KEY=change-me
 EMBEDDING_DEVICE=auto
 MAX_UPLOAD_BYTES=26214400
+DATABASE_PATH=data/rag_demo.db
 ```
 
 The `.env` file is ignored by Git and should never be committed.
@@ -141,7 +143,7 @@ Useful endpoints:
 | `GET /health` | Service health check |
 | `GET /index/status` | FAISS/chunks/manifest status |
 | `GET /sources` | Indexed knowledge sources |
-| `GET /documents` | Uploaded document records from `data/uploads/upload_manifest.json` |
+| `GET /documents` | Uploaded document records from SQLite |
 | `POST /documents/upload` | Upload a PDF/TXT/MD/DOCX, save it safely, queue indexing, and update status |
 | `POST /chat` | Normal RAG answer |
 | `POST /agent/chat` | Agent RAG answer |
@@ -159,7 +161,15 @@ conda activate rag
 streamlit run frontend_app.py
 ```
 
-The original `app.py` is still kept as a local debug UI that imports `RAGPipeline` directly. `frontend_app.py` is the engineering-style UI that calls the FastAPI backend over HTTP.
+Uploaded documents, index job states, and API chat history are stored in SQLite at `data/rag_demo.db` by default. The database has three first-stage tables:
+
+| Table | Purpose |
+| --- | --- |
+| `documents` | Uploaded file metadata, storage path, sha256, and current indexing status |
+| `index_jobs` | Indexing job lifecycle state: queued, indexing, indexed, or failed |
+| `chat_messages` | API chat/agent chat query, answer, sources, and run metadata |
+
+The older `data/uploads/upload_manifest.json` runtime file is migrated into SQLite when the API starts or when documents are listed. The original `app.py` is still kept as a local debug UI that imports `RAGPipeline` directly. `frontend_app.py` is the engineering-style UI that calls the FastAPI backend over HTTP.
 
 ## Local Embedding Model
 
